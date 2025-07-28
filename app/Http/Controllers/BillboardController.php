@@ -1,11 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreBillboardRequest;
 use App\Http\Requests\UpdateBillboardRequest;
+use App\Http\Resources\BillboardResource;
 use App\Models\Billboard;
-use App\Models\Company;
+use App\Services\BillboardService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -13,87 +18,226 @@ use Inertia\Response;
 
 class BillboardController extends Controller
 {
-  public function index(Request $request): Response
-  {
-    $user = Auth::user();
-    $company = $user->currentCompany;
+    public function __construct(
+        private readonly BillboardService $billboardService
+    ) {}
 
-    if (!$company) {
-      return redirect()->route('companies.create')
-        ->with('info', 'Please create a company first.');
+    public function index(Request $request): Response
+    {
+        $user = Auth::user();
+        $company = $user->currentCompany;
+
+        if (!$company) {
+            return Inertia::render('companies/Select', [
+                'companies' => $user->companies()->get(),
+            ]);
+        }
+
+        // Get filters from request
+        $filters = $request->only([
+            'search', 'status', 'size', 'availability',
+            'min_rate', 'max_rate', 'created_from', 'created_to',
+            'sort_by', 'sort_direction'
+        ]);
+
+        // Get filtered billboards
+        $billboards = $this->billboardService->getFilteredBillboards($company, $filters);
+
+        // Get billboard stats
+        $stats = $this->billboardService->getBillboardStats($company);
+
+        // Get available sizes for filter
+        $availableSizes = $company->billboards()
+            ->whereNotNull('size')
+            ->distinct()
+            ->pluck('size')
+            ->sort()
+            ->values();
+
+        return Inertia::render('billboards/Index', [
+            'billboards' => BillboardResource::collection($billboards),
+            'stats' => $stats,
+            'filters' => $filters,
+            'available_sizes' => $availableSizes,
+            'companies' => $user->companies()->get(),
+            'company' => [
+                'id' => $company->id,
+                'name' => $company->name,
+            ],
+        ]);
     }
 
-    $billboards = $company->billboards()
-      ->when($request->search, function ($query, $search) {
-        $query->where('name', 'like', "%{$search}%")
-          ->orWhere('location', 'like', "%{$search}%")
-          ->orWhere('code', 'like', "%{$search}%");
-      })
-      ->when($request->status, function ($query, $status) {
-        $query->where('status', $status);
-      })
-      ->orderBy('created_at', 'desc')
-      ->paginate(15);
+    public function create(): Response
+    {
+        $user = Auth::user();
+        $company = $user->currentCompany;
 
-    return Inertia::render('Billboards/Index', [
-      'billboards' => $billboards,
-      'filters' => $request->only(['search', 'status']),
-      'company' => $company,
-    ]);
-  }
+        if (!$company) {
+            return redirect()->route('companies.index')
+                ->with('error', 'Please select a company first.');
+        }
 
-  public function create(): Response
-  {
-    return Inertia::render('Billboards/Create');
-  }
+        return Inertia::render('billboards/Create', [
+            'company' => [
+                'id' => $company->id,
+                'name' => $company->name,
+            ],
+        ]);
+    }
 
-  public function store(StoreBillboardRequest $request)
-  {
-    $user = Auth::user();
+    public function store(StoreBillboardRequest $request): RedirectResponse
+    {
+        $user = Auth::user();
+        $company = $user->currentCompany;
 
-    $billboard = $user->currentCompany->billboards()->create($request->validated());
+        if (!$company) {
+            return redirect()->route('companies.index')
+                ->with('error', 'Please select a company first.');
+        }
 
-    return redirect()->route('billboards.index')
-      ->with('success', 'Billboard created successfully!');
-  }
+        $billboard = $company->billboards()->create($request->validated());
 
-  public function show(Billboard $billboard): Response
-  {
-    $this->authorize('view', $billboard);
+        return redirect()->route('billboards.index')
+            ->with('success', "Billboard '{$billboard->name}' created successfully!");
+    }
 
-    $billboard->load('media');
+    public function show(Billboard $billboard): Response
+    {
+        $this->authorize('view', $billboard);
 
-    return Inertia::render('Billboards/Show', [
-      'billboard' => $billboard,
-    ]);
-  }
+        $billboard->load(['media', 'contracts' => function ($query) {
+            $query->latest()->limit(5);
+        }]);
 
-  public function edit(Billboard $billboard): Response
-  {
-    $this->authorize('update', $billboard);
+        // Get billboard revenue data
+        $revenueData = $this->billboardService->getBillboardRevenue($billboard);
 
-    return Inertia::render('Billboards/Edit', [
-      'billboard' => $billboard,
-    ]);
-  }
+        // Get utilization data
+        $utilizationData = $this->billboardService->getBillboardUtilization($billboard);
 
-  public function update(UpdateBillboardRequest $request, Billboard $billboard)
-  {
-    $this->authorize('update', $billboard);
+        return Inertia::render('billboards/Show', [
+            'billboard' => new BillboardResource($billboard),
+            'revenue_data' => $revenueData,
+            'utilization_data' => $utilizationData,
+        ]);
+    }
 
-    $billboard->update($request->validated());
+    public function edit(Billboard $billboard): Response
+    {
+        $this->authorize('update', $billboard);
 
-    return redirect()->route('billboards.index')
-      ->with('success', 'Billboard updated successfully!');
-  }
+        return Inertia::render('billboards/Edit', [
+            'billboard' => new BillboardResource($billboard),
+        ]);
+    }
 
-  public function destroy(Billboard $billboard)
-  {
-    $this->authorize('delete', $billboard);
+    public function update(UpdateBillboardRequest $request, Billboard $billboard): RedirectResponse
+    {
+        $this->authorize('update', $billboard);
 
-    $billboard->delete();
+        $billboard->update($request->validated());
 
-    return redirect()->route('billboards.index')
-      ->with('success', 'Billboard deleted successfully!');
-  }
+        return redirect()->route('billboards.show', $billboard)
+            ->with('success', "Billboard '{$billboard->name}' updated successfully!");
+    }
+
+    public function destroy(Billboard $billboard): RedirectResponse
+    {
+        $this->authorize('delete', $billboard);
+
+        // Check if billboard has active contracts
+        $activeContracts = $billboard->contracts()->where('status', 'active')->count();
+
+        if ($activeContracts > 0) {
+            return redirect()->back()
+                ->with('error', 'Cannot delete billboard with active contracts.');
+        }
+
+        $name = $billboard->name;
+        $billboard->delete();
+
+        return redirect()->route('billboards.index')
+            ->with('success', "Billboard '{$name}' deleted successfully!");
+    }
+
+    public function duplicate(Billboard $billboard): RedirectResponse
+    {
+        $this->authorize('view', $billboard);
+
+        $newBillboard = $this->billboardService->duplicateBillboard($billboard);
+
+        return redirect()->route('billboards.edit', $newBillboard)
+            ->with('success', "Billboard duplicated successfully! Please review and update the details.");
+    }
+
+    public function bulkUpdate(Request $request): JsonResponse
+    {
+        $request->validate([
+            'billboard_ids' => 'required|array',
+            'billboard_ids.*' => 'exists:billboards,id',
+            'action' => 'required|in:activate,deactivate,maintenance',
+        ]);
+
+        $user = Auth::user();
+        $company = $user->currentCompany;
+
+        $status = match ($request->action) {
+            'activate' => 'active',
+            'deactivate' => 'inactive',
+            'maintenance' => 'maintenance',
+        };
+
+        $updated = $this->billboardService->bulkUpdateStatus(
+            $company,
+            $request->billboard_ids,
+            $status
+        );
+
+        return response()->json([
+            'message' => "Successfully updated {$updated} billboards.",
+            'updated_count' => $updated,
+        ]);
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        $request->validate([
+            'query' => 'required|string|min:2|max:100',
+        ]);
+
+        $user = Auth::user();
+        $company = $user->currentCompany;
+
+        if (!$company) {
+            return response()->json(['billboards' => []]);
+        }
+
+        $billboards = $this->billboardService->searchBillboards($company, $request->query);
+
+        return response()->json([
+            'billboards' => BillboardResource::collection($billboards),
+        ]);
+    }
+
+    public function export(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        $company = $user->currentCompany;
+
+        if (!$company) {
+            return response()->json(['error' => 'No company selected'], 400);
+        }
+
+        $filters = $request->only([
+            'search', 'status', 'size', 'availability',
+            'min_rate', 'max_rate', 'created_from', 'created_to'
+        ]);
+
+        $data = $this->billboardService->exportBillboards($company, $filters);
+
+        return response()->json([
+            'data' => $data,
+            'filename' => 'billboards_' . now()->format('Y-m-d_H-i-s') . '.csv',
+        ]);
+    }
 }

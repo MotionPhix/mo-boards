@@ -1,5 +1,5 @@
 <template>
-  <nav class="flex items-center justify-between">
+  <nav class="flex items-center justify-between" v-if="hasValidLinks">
     <div class="flex-1 flex justify-between sm:hidden">
       <Button
         v-if="links.prev"
@@ -75,7 +75,8 @@ interface PaginationLink {
 }
 
 interface Props {
-  links: PaginationLink[]
+  // Accept either the direct links array or the full pagination object
+  links?: PaginationLink[] | any
   from?: number
   to?: number
   total?: number
@@ -83,17 +84,53 @@ interface Props {
 
 const props = defineProps<Props>()
 
+// Extract the actual links array from various possible structures
+const actualLinks = computed(() => {
+  // If links is already an array, use it directly
+  if (Array.isArray(props.links)) {
+    return props.links
+  }
+
+  // If links is an object with meta.links (Laravel Resource structure)
+  if (props.links && props.links.meta && Array.isArray(props.links.meta.links)) {
+    return props.links.meta.links
+  }
+
+  // If links is an object with links property (some other structure)
+  if (props.links && Array.isArray(props.links.links)) {
+    return props.links.links
+  }
+
+  // Fallback to empty array
+  return []
+})
+
+const hasValidLinks = computed(() => {
+  return actualLinks.value.length > 0
+})
+
 const paginationLinks = computed(() => {
-  return props.links.filter(link =>
-    !['Previous', 'Next'].includes(link.label)
+  if (!hasValidLinks.value) {
+    return []
+  }
+  return actualLinks.value.filter((link: PaginationLink) =>
+    !['Previous', 'Next', '&laquo; Previous', 'Next &raquo;'].includes(link.label)
   )
 })
 
 const links = computed(() => {
-  const allLinks = props.links
+  if (!hasValidLinks.value) {
+    return { prev: null, next: null }
+  }
+
+  const allLinks = actualLinks.value as PaginationLink[]
   return {
-    prev: allLinks.find(link => link.label === 'Previous')?.url,
-    next: allLinks.find(link => link.label === 'Next')?.url,
+    prev: allLinks.find(link =>
+      link.label === 'Previous' || link.label === '&laquo; Previous'
+    )?.url || null,
+    next: allLinks.find(link =>
+      link.label === 'Next' || link.label === 'Next &raquo;'
+    )?.url || null,
   }
 })
 </script>

@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use Tighten\Ziggy\Ziggy;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -39,8 +40,8 @@ class HandleInertiaRequests extends Middleware
           'phone' => $request->user()->phone,
           'current_company_id' => $request->user()->current_company_id,
           'last_active_at' => $request->user()->last_active_at,
-          'companies' => $request->user()->companies()->with('pivot')->get()->map(function ($company) {
-            return [
+          'companies' => $request->user()->companies()->get()->map(function ($company) {
+            return [ // ->with('pivot')
               'id' => $company->id,
               'name' => $company->name,
               'slug' => $company->slug,
@@ -72,11 +73,10 @@ class HandleInertiaRequests extends Middleware
         'warning' => $request->session()->get('warning'),
         'info' => $request->session()->get('info'),
       ],
-      'ziggy' => function () use ($request) {
-        return array_merge((new \Tightenco\Ziggy\Ziggy)->toArray(), [
-          'location' => $request->url(),
-        ]);
-      },
+      'ziggy' => [
+        ...(new Ziggy)->toArray(),
+        'location' => $request->url(),
+      ],
     ];
   }
 }

@@ -32,6 +32,27 @@ Route::middleware(['auth', 'verified', 'ensure.company.access'])->group(function
     \App\Http\Controllers\BillboardController::class
   );
 
+  // Additional billboard routes
+  Route::post(
+    '/billboards/{billboard}/duplicate',
+    [\App\Http\Controllers\BillboardController::class, 'duplicate']
+  )->name('billboards.duplicate');
+
+  Route::post(
+    '/billboards/bulk-update',
+    [\App\Http\Controllers\BillboardController::class, 'bulkUpdate']
+  )->name('billboards.bulk-update');
+
+  Route::get(
+    '/billboards/search',
+    [\App\Http\Controllers\BillboardController::class, 'search']
+  )->name('billboards.search');
+
+  Route::get(
+    '/billboards/export',
+    [\App\Http\Controllers\BillboardController::class, 'export']
+  )->name('billboards.export');
+
   // Team routes
   Route::resource(
     'team',
@@ -110,3 +131,4 @@ Route::post('/contracts/{contract}/sign-client', [
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
+require __DIR__.'/test.php';

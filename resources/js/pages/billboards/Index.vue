@@ -48,10 +48,13 @@
                     <SelectValue placeholder="All Status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Status</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                    <SelectItem value="maintenance">Maintenance</SelectItem>
+                    <SelectItem
+                      v-for="option in billboardStatusOptions"
+                      :key="option.value"
+                      :value="option.value"
+                    >
+                      {{ option.label }}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -100,6 +103,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
+import { useSelectOptions } from '@/composables/useSelectOptions'
 import type { Billboard, Company } from '@/types'
 
 interface Props {
@@ -120,13 +124,20 @@ interface Props {
 
 const props = defineProps<Props>()
 
+const { billboardStatusOptions, toBackendValue, toFrontendValue } = useSelectOptions()
+
 const searchForm = reactive({
   search: props.filters.search || '',
-  status: props.filters.status || '',
+  status: toFrontendValue(props.filters.status),
 })
 
 const debouncedSearch = debounce(() => {
-  router.get(route('billboards.index'), searchForm, {
+  const formData = {
+    search: searchForm.search,
+    status: toBackendValue(searchForm.status),
+  }
+
+  router.get(route('billboards.index'), formData, {
     preserveState: true,
     replace: true,
   })
@@ -134,7 +145,13 @@ const debouncedSearch = debounce(() => {
 
 const updateStatus = (value: string) => {
   searchForm.status = value
-  router.get(route('billboards.index'), searchForm, {
+
+  const formData = {
+    search: searchForm.search,
+    status: toBackendValue(value),
+  }
+
+  router.get(route('billboards.index'), formData, {
     preserveState: true,
     replace: true,
   })
