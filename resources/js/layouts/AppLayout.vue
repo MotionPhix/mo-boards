@@ -1,3 +1,48 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import { Link, router, usePage } from '@inertiajs/vue3';
+import { User, Building, LogOut } from 'lucide-vue-next'
+import NavLink from '@/components/NavLink.vue'
+import CompanySelector from '@/components/CompanySelector.vue'
+import FlashMessages from '@/components/FlashMessages.vue'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+
+interface Props {
+  title: string
+}
+
+defineProps<Props>()
+
+const userInitials = computed(() => {
+  const user = page.props.user
+  return user.name
+    .split(' ')
+    .map(name => name.charAt(0))
+    .join('')
+    .toUpperCase()
+})
+
+const userAvatar = computed(() => {
+  // Return user avatar URL if available
+  return null
+})
+
+const logout = () => {
+  router.post(route('logout'))
+}
+
+console.log('AppLayout mounted with user:', usePage().props);
+</script>
+
 <template>
   <div class="min-h-screen bg-gray-50">
     <!-- Navigation -->
@@ -84,46 +129,3 @@
     </main>
   </div>
 </template>
-
-<script setup lang="ts">
-import { computed } from 'vue'
-import { Link, router } from '@inertiajs/vue3'
-import { User, Building, LogOut } from 'lucide-vue-next'
-import NavLink from '@/components/NavLink.vue'
-import CompanySelector from '@/components/CompanySelector.vue'
-import FlashMessages from '@/components/FlashMessages.vue'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-
-interface Props {
-  title: string
-}
-
-defineProps<Props>()
-
-const userInitials = computed(() => {
-  const user = page.props.user
-  return user.name
-    .split(' ')
-    .map(name => name.charAt(0))
-    .join('')
-    .toUpperCase()
-})
-
-const userAvatar = computed(() => {
-  // Return user avatar URL if available
-  return null
-})
-
-const logout = () => {
-  router.post(route('logout'))
-}
-</script>

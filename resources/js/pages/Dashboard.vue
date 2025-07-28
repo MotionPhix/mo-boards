@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Modal } from '@/components/ui/modal'
+import Modal from '@/components/Modal.vue'
 import {
   Select,
   SelectContent,
@@ -78,7 +78,7 @@ const createCompany = () => {
 </script>
 
 <template>
-  <AppLayout>
+  <AppLayout title="Dashboard" :breadcrumbs="[{ name: 'Dashboard', href: route('dashboard') }]">
     <Head title="Dashboard" />
 
     <div class="py-12">
