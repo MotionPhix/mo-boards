@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 
-class BillboardController extends Controller
+final class BillboardController extends Controller
 {
     public function __construct(
         private readonly BillboardService $billboardService
@@ -27,7 +27,7 @@ class BillboardController extends Controller
         $user = Auth::user();
         $company = $user->currentCompany;
 
-        if (!$company) {
+        if (! $company) {
             return Inertia::render('companies/Select', [
                 'companies' => $user->companies()->get(),
             ]);
@@ -37,7 +37,7 @@ class BillboardController extends Controller
         $filters = $request->only([
             'search', 'status', 'size', 'availability',
             'min_rate', 'max_rate', 'created_from', 'created_to',
-            'sort_by', 'sort_direction'
+            'sort_by', 'sort_direction',
         ]);
 
         // Get filtered billboards
@@ -46,11 +46,15 @@ class BillboardController extends Controller
         // Get billboard stats
         $stats = $this->billboardService->getBillboardStats($company);
 
-        // Get available sizes for filter
+        // Get available sizes for filter (generated from width x height combinations)
         $availableSizes = $company->billboards()
-            ->whereNotNull('size')
-            ->distinct()
-            ->pluck('size')
+            ->whereNotNull('width')
+            ->whereNotNull('height')
+            ->get()
+            ->map(function ($billboard) {
+                return $billboard->width.' x '.$billboard->height;
+            })
+            ->unique()
             ->sort()
             ->values();
 
@@ -72,7 +76,7 @@ class BillboardController extends Controller
         $user = Auth::user();
         $company = $user->currentCompany;
 
-        if (!$company) {
+        if (! $company) {
             return redirect()->route('companies.index')
                 ->with('error', 'Please select a company first.');
         }
@@ -90,7 +94,7 @@ class BillboardController extends Controller
         $user = Auth::user();
         $company = $user->currentCompany;
 
-        if (!$company) {
+        if (! $company) {
             return redirect()->route('companies.index')
                 ->with('error', 'Please select a company first.');
         }
@@ -167,7 +171,7 @@ class BillboardController extends Controller
         $newBillboard = $this->billboardService->duplicateBillboard($billboard);
 
         return redirect()->route('billboards.edit', $newBillboard)
-            ->with('success', "Billboard duplicated successfully! Please review and update the details.");
+            ->with('success', 'Billboard duplicated successfully! Please review and update the details.');
     }
 
     public function bulkUpdate(Request $request): JsonResponse
@@ -208,7 +212,7 @@ class BillboardController extends Controller
         $user = Auth::user();
         $company = $user->currentCompany;
 
-        if (!$company) {
+        if (! $company) {
             return response()->json(['billboards' => []]);
         }
 
@@ -224,20 +228,20 @@ class BillboardController extends Controller
         $user = Auth::user();
         $company = $user->currentCompany;
 
-        if (!$company) {
+        if (! $company) {
             return response()->json(['error' => 'No company selected'], 400);
         }
 
         $filters = $request->only([
             'search', 'status', 'size', 'availability',
-            'min_rate', 'max_rate', 'created_from', 'created_to'
+            'min_rate', 'max_rate', 'created_from', 'created_to',
         ]);
 
         $data = $this->billboardService->exportBillboards($company, $filters);
 
         return response()->json([
             'data' => $data,
-            'filename' => 'billboards_' . now()->format('Y-m-d_H-i-s') . '.csv',
+            'filename' => 'billboards_'.now()->format('Y-m-d_H-i-s').'.csv',
         ]);
     }
 }

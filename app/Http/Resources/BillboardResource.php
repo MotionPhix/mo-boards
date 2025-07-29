@@ -9,169 +9,169 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class BillboardResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     *
-     * @return array<string, mixed>
-     */
-    public function toArray(Request $request): array
-    {
-        return [
-            'id' => $this->id,
-            'code' => $this->code,
-            'name' => $this->name,
-            'location' => $this->location,
-            'coordinates' => [
-                'latitude' => $this->latitude,
-                'longitude' => $this->longitude,
-            ],
-            'dimensions' => [
-                'size' => $this->size,
-                'width' => $this->width,
-                'height' => $this->height,
-                'area' => $this->width && $this->height ? round($this->width * $this->height, 2) : null,
-            ],
-            'pricing' => [
-                'monthly_rate' => $this->monthly_rate,
-                'formatted_rate' => $this->monthly_rate ? '$' . number_format($this->monthly_rate, 2) : null,
-                'annual_rate' => $this->monthly_rate ? $this->monthly_rate * 12 : null,
-            ],
-            'status' => [
-                'current' => $this->status,
-                'label' => ucfirst($this->status),
-                'color' => $this->getStatusColor(),
-                'can_edit' => $this->status !== 'maintenance',
-            ],
-            'description' => $this->description,
-            'contracts' => [
-                'active_count' => $this->active_contracts_count ?? 0,
-                'is_occupied' => $this->isCurrentlyOccupied(),
-                'current_contract' => $this->when(
-                    $this->relationLoaded('contracts') && $this->contracts->isNotEmpty(),
-                    function () {
-                        $activeContract = $this->contracts->first();
-                        return $activeContract ? [
-                            'id' => $activeContract->id,
-                            'client_name' => $activeContract->client_name,
-                            'start_date' => $activeContract->start_date->format('M d, Y'),
-                            'end_date' => $activeContract->end_date->format('M d, Y'),
-                            'monthly_amount' => '$' . number_format($activeContract->monthly_amount, 2),
-                        ] : null;
-                    }
-                ),
-            ],
-            'media' => $this->when(
-                $this->relationLoaded('media'),
-                function () {
-                    return $this->media->map(function ($media) {
-                        return [
-                            'id' => $media->id,
-                            'name' => $media->name,
-                            'url' => $media->getUrl(),
-                            'preview_url' => $media->hasGeneratedConversion('preview')
-                                ? $media->getUrl('preview')
-                                : $media->getUrl(),
-                            'type' => $media->mime_type,
-                            'size' => $this->formatFileSize($media->size),
-                        ];
-                    });
-                }
-            ),
-            'performance' => $this->when(
-                $request->routeIs('billboards.show'),
-                function () {
-                    return [
-                        'utilization_rate' => $this->calculateUtilizationRate(),
-                        'total_revenue' => $this->calculateTotalRevenue(),
-                        'average_contract_duration' => $this->calculateAverageContractDuration(),
-                    ];
-                }
-            ),
-            'timestamps' => [
-                'created_at' => $this->created_at->format('M d, Y'),
-                'updated_at' => $this->updated_at->format('M d, Y'),
-                'created_at_human' => $this->created_at->diffForHumans(),
-                'updated_at_human' => $this->updated_at->diffForHumans(),
-            ],
-            'actions' => [
-                'can_view' => true,
-                'can_edit' => $this->status !== 'maintenance',
-                'can_delete' => $this->active_contracts_count === 0,
-                'can_duplicate' => true,
-            ],
-        ];
-    }
-
-    private function getStatusColor(): string
-    {
-        return match ($this->status) {
-            'active' => 'green',
-            'inactive' => 'red',
-            'maintenance' => 'yellow',
-            default => 'gray',
-        };
-    }
-
-    private function isCurrentlyOccupied(): bool
-    {
-        if (!$this->relationLoaded('contracts')) {
-            return false;
+  /**
+   * Transform the resource into an array.
+   *
+   * @return array<string, mixed>
+   */
+  public function toArray(Request $request): array
+  {
+    return [
+      'id' => $this->id,
+      'code' => $this->code,
+      'name' => $this->name,
+      'location' => $this->location,
+      'coordinates' => [
+        'latitude' => $this->latitude,
+        'longitude' => $this->longitude,
+      ],
+      'dimensions' => [
+        'width' => $this->width,
+        'height' => $this->height,
+        'size' => $this->size, // This now comes from the accessor method
+        'area' => $this->width && $this->height ? round($this->width * $this->height, 2) : null,
+      ],
+      'pricing' => [
+        'monthly_rate' => $this->monthly_rate,
+        'formatted_rate' => $this->monthly_rate ? '$' . number_format((float) $this->monthly_rate, 2) : null,
+        'annual_rate' => $this->monthly_rate ? $this->monthly_rate * 12 : null,
+      ],
+      'status' => [
+        'current' => $this->status,
+        'label' => ucfirst($this->status),
+        'color' => $this->getStatusColor(),
+        'can_edit' => $this->status !== 'maintenance',
+      ],
+      'description' => $this->description,
+      'contracts' => [
+        'active_count' => $this->active_contracts_count ?? 0,
+        'is_occupied' => $this->isCurrentlyOccupied(),
+        'current_contract' => $this->when(
+          $this->relationLoaded('contracts') && $this->contracts->isNotEmpty(),
+          function () {
+            $activeContract = $this->contracts->first();
+            return $activeContract ? [
+              'id' => $activeContract->id,
+              'client_name' => $activeContract->client_name,
+              'start_date' => $activeContract->start_date->format('M d, Y'),
+              'end_date' => $activeContract->end_date->format('M d, Y'),
+              'monthly_amount' => '$' . number_format($activeContract->monthly_amount, 2),
+            ] : null;
+          }
+        ),
+      ],
+      'media' => $this->when(
+        $this->relationLoaded('media'),
+        function () {
+          return $this->media->map(function ($media) {
+            return [
+              'id' => $media->id,
+              'name' => $media->name,
+              'url' => $media->getUrl(),
+              'preview_url' => $media->hasGeneratedConversion('preview')
+                ? $media->getUrl('preview')
+                : $media->getUrl(),
+              'type' => $media->mime_type,
+              'size' => $this->formatFileSize($media->size),
+            ];
+          });
         }
+      ),
+      'performance' => $this->when(
+        $request->routeIs('billboards.show'),
+        function () {
+          return [
+            'utilization_rate' => $this->calculateUtilizationRate(),
+            'total_revenue' => $this->calculateTotalRevenue(),
+            'average_contract_duration' => $this->calculateAverageContractDuration(),
+          ];
+        }
+      ),
+      'timestamps' => [
+        'created_at' => $this->created_at->format('M d, Y'),
+        'updated_at' => $this->updated_at->format('M d, Y'),
+        'created_at_human' => $this->created_at->diffForHumans(),
+        'updated_at_human' => $this->updated_at->diffForHumans(),
+      ],
+      'actions' => [
+        'can_view' => true,
+        'can_edit' => $this->status !== 'maintenance',
+        'can_delete' => $this->active_contracts_count === 0,
+        'can_duplicate' => true,
+      ],
+    ];
+  }
 
-        return $this->contracts->where('status', 'active')
-            ->where('start_date', '<=', now())
-            ->where('end_date', '>=', now())
-            ->isNotEmpty();
+  private function getStatusColor(): string
+  {
+    return match ($this->status) {
+      'active' => 'green',
+      'inactive' => 'red',
+      'maintenance' => 'yellow',
+      default => 'gray',
+    };
+  }
+
+  private function isCurrentlyOccupied(): bool
+  {
+    if (!$this->relationLoaded('contracts')) {
+      return false;
     }
 
-    private function calculateUtilizationRate(): float
-    {
-        $totalDays = $this->created_at->diffInDays(now());
-        if ($totalDays === 0) return 0;
+    return $this->contracts->where('status', 'active')
+      ->where('start_date', '<=', now())
+      ->where('end_date', '>=', now())
+      ->isNotEmpty();
+  }
 
-        $occupiedDays = $this->contracts()
-            ->where('status', 'active')
-            ->get()
-            ->sum(function ($contract) {
-                $start = max($contract->start_date, $this->created_at);
-                $end = min($contract->end_date, now());
-                return $start->diffInDays($end);
-            });
+  private function calculateUtilizationRate(): float
+  {
+    $totalDays = $this->created_at->diffInDays(now());
+    if ($totalDays === 0) return 0;
 
-        return round(($occupiedDays / $totalDays) * 100, 2);
-    }
+    $occupiedDays = $this->contracts()
+      ->where('status', 'active')
+      ->get()
+      ->sum(function ($contract) {
+        $start = max($contract->start_date, $this->created_at);
+        $end = min($contract->end_date, now());
+        return $start->diffInDays($end);
+      });
 
-    private function calculateTotalRevenue(): float
-    {
-        return $this->contracts()
-            ->whereIn('status', ['active', 'completed'])
-            ->sum('total_amount');
-    }
+    return round(($occupiedDays / $totalDays) * 100, 2);
+  }
 
-    private function calculateAverageContractDuration(): int
-    {
-        $contracts = $this->contracts()
-            ->whereIn('status', ['active', 'completed'])
-            ->get();
+  private function calculateTotalRevenue(): float
+  {
+    return $this->contracts()
+      ->whereIn('status', ['active', 'completed'])
+      ->sum('total_amount');
+  }
 
-        if ($contracts->isEmpty()) return 0;
+  private function calculateAverageContractDuration(): int
+  {
+    $contracts = $this->contracts()
+      ->whereIn('status', ['active', 'completed'])
+      ->get();
 
-        $totalDays = $contracts->sum(function ($contract) {
-            return $contract->start_date->diffInDays($contract->end_date);
-        });
+    if ($contracts->isEmpty()) return 0;
 
-        return round($totalDays / $contracts->count());
-    }
+    $totalDays = $contracts->sum(function ($contract) {
+      return $contract->start_date->diffInDays($contract->end_date);
+    });
 
-    private function formatFileSize(int $bytes): string
-    {
-        $units = ['B', 'KB', 'MB', 'GB'];
-        $bytes = max($bytes, 0);
-        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
-        $pow = min($pow, count($units) - 1);
+    return round($totalDays / $contracts->count());
+  }
 
-        $bytes /= pow(1024, $pow);
+  private function formatFileSize(int $bytes): string
+  {
+    $units = ['B', 'KB', 'MB', 'GB'];
+    $bytes = max($bytes, 0);
+    $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+    $pow = min($pow, count($units) - 1);
 
-        return round($bytes, 2) . ' ' . $units[$pow];
-    }
+    $bytes /= pow(1024, $pow);
+
+    return round($bytes, 2) . ' ' . $units[$pow];
+  }
 }

@@ -8,10 +8,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
-class User extends Authenticatable
+class User extends Authenticatable implements HasMedia
 {
-  use HasFactory, Notifiable, HasRoles;
+  use HasFactory, Notifiable, HasRoles, InteractsWithMedia;
 
   protected $fillable = [
     'name',
@@ -61,5 +64,27 @@ class User extends Authenticatable
       ->where('companies.id', $company->id)
       ->wherePivot('is_owner', true)
       ->exists();
+  }
+
+  public function registerMediaConversions(Media $media = null): void
+  {
+    $this->addMediaConversion('avatar')
+      ->width(150)
+      ->height(150)
+      ->sharpen(10)
+      ->performOnCollections('avatars');
+  }
+
+  public function getAvatarAttribute(): string
+  {
+    $avatar = $this->getFirstMediaUrl('avatars', 'avatar');
+
+    if ($avatar) {
+      return $avatar;
+    }
+
+    // Fallback to Gravatar
+    $hash = md5(strtolower(trim($this->email)));
+    return "https://www.gravatar.com/avatar/{$hash}?d=mp&s=150";
   }
 }

@@ -20,7 +20,6 @@ class Billboard extends Model implements HasMedia
     'location',
     'latitude',
     'longitude',
-    'size',
     'width',
     'height',
     'monthly_rate',
@@ -114,5 +113,38 @@ class Billboard extends Model implements HasMedia
           });
       })
       ->exists();
+  }
+
+  public function getStatusColor(): string
+  {
+    return match ($this->status) {
+      'active' => 'success',
+      'inactive' => 'warning',
+      'maintenance' => 'destructive',
+      default => 'secondary',
+    };
+  }
+
+  public function isCurrentlyOccupied(): bool
+  {
+    return $this->activeContracts()->exists();
+  }
+
+  public function formatFileSize(int $bytes): string
+  {
+    $units = ['B', 'KB', 'MB', 'GB'];
+    for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
+      $bytes /= 1024;
+    }
+    return round($bytes, 2) . ' ' . $units[$i];
+  }
+
+  // Generate a formatted size string from width and height
+  public function getSizeAttribute(): ?string
+  {
+    if ($this->width && $this->height) {
+      return $this->width . ' x ' . $this->height;
+    }
+    return null;
   }
 }
