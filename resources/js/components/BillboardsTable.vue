@@ -4,48 +4,104 @@
       <TableHeader>
         <TableRow>
           <TableHead>Code</TableHead>
-          <TableHead>Name</TableHead>
-          <TableHead>Location</TableHead>
-          <TableHead>Size</TableHead>
+          <TableHead>Name & Location</TableHead>
+          <TableHead>Dimensions</TableHead>
           <TableHead>Status</TableHead>
-          <TableHead>Monthly Rate</TableHead>
+          <TableHead>Pricing</TableHead>
+          <TableHead>Occupancy</TableHead>
           <TableHead class="text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        <TableRow v-for="billboard in billboards" :key="billboard.id">
-          <TableCell class="font-medium">{{ billboard.code }}</TableCell>
-          <TableCell>{{ billboard.name }}</TableCell>
-          <TableCell>{{ billboard.location }}</TableCell>
-          <TableCell>{{ billboard.size || 'N/A' }}</TableCell>
+        <TableRow
+          v-for="billboard in billboards"
+          :key="billboard.id"
+          class="hover:bg-gray-50 transition-colors"
+        >
+          <TableCell class="font-medium">
+            <div class="flex flex-col">
+              <span class="font-semibold text-gray-900">{{ billboard.code }}</span>
+            </div>
+          </TableCell>
+
           <TableCell>
-            <Badge :variant="getStatusVariant(billboard.status)">
-              {{ billboard.status }}
+            <div class="flex flex-col space-y-1">
+              <span class="font-medium text-gray-900">{{ billboard.name }}</span>
+              <span class="text-sm text-gray-500 flex items-center">
+                <MapPin class="w-3 h-3 mr-1" />
+                {{ billboard.location }}
+              </span>
+            </div>
+          </TableCell>
+
+          <TableCell>
+            <div class="flex flex-col space-y-1">
+              <span class="font-medium">{{ billboard.dimensions.size }}</span>
+              <span class="text-xs text-gray-500">{{ billboard.dimensions.area }} sq ft</span>
+            </div>
+          </TableCell>
+
+          <TableCell>
+            <Badge :variant="getStatusVariant(billboard.status.current)">
+              <div class="flex items-center space-x-1">
+                <div
+                  class="w-2 h-2 rounded-full"
+                  :class="getStatusDotColor(billboard.status.current)"
+                ></div>
+                <span>{{ billboard.status.label }}</span>
+              </div>
             </Badge>
           </TableCell>
-          <TableCell>${{ billboard.monthly_rate.toLocaleString() }}/month</TableCell>
+
+          <TableCell>
+            <div class="flex flex-col space-y-1">
+              <span class="font-semibold text-gray-900">{{ billboard.pricing.formatted_rate }}</span>
+              <span class="text-xs text-gray-500">per month</span>
+            </div>
+          </TableCell>
+
+          <TableCell>
+            <div class="flex items-center space-x-2">
+              <Badge
+                :variant="billboard.contracts.is_occupied ? 'default' : 'outline'"
+                class="text-xs"
+              >
+                {{ billboard.contracts.is_occupied ? 'Occupied' : 'Available' }}
+              </Badge>
+              <span class="text-xs text-gray-500">
+                {{ billboard.contracts.active_count }} active
+              </span>
+            </div>
+          </TableCell>
+
           <TableCell class="text-right">
-            <div class="flex justify-end space-x-2">
+            <div class="flex justify-end space-x-1">
               <Button
-                variant="outline"
+                v-if="billboard.actions.can_view"
+                variant="ghost"
                 size="sm"
                 @click="$emit('view', billboard)"
+                class="h-8 w-8 p-0"
               >
-                View
+                <Eye class="h-4 w-4" />
               </Button>
               <Button
-                variant="outline"
+                v-if="billboard.actions.can_edit"
+                variant="ghost"
                 size="sm"
                 @click="$emit('edit', billboard)"
+                class="h-8 w-8 p-0"
               >
-                Edit
+                <Edit class="h-4 w-4" />
               </Button>
               <Button
-                variant="destructive"
+                v-if="billboard.actions.can_delete"
+                variant="ghost"
                 size="sm"
                 @click="$emit('delete', billboard)"
+                class="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
               >
-                Delete
+                <Trash2 class="h-4 w-4" />
               </Button>
             </div>
           </TableCell>
@@ -66,6 +122,7 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table'
+import { MapPin, Eye, Edit, Trash2 } from 'lucide-vue-next'
 import type { Billboard } from '@/types'
 
 interface Props {
@@ -90,6 +147,19 @@ const getStatusVariant = (status: string) => {
       return 'destructive'
     default:
       return 'outline'
+  }
+}
+
+const getStatusDotColor = (status: string) => {
+  switch (status) {
+    case 'active':
+      return 'bg-green-500'
+    case 'inactive':
+      return 'bg-gray-400'
+    case 'maintenance':
+      return 'bg-red-500'
+    default:
+      return 'bg-gray-400'
   }
 }
 </script>

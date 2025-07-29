@@ -67,20 +67,47 @@ export interface Company {
 
 export interface Billboard {
   id: number
-  company_id: number
-  name: string
   code: string
+  name: string
   location: string
-  latitude?: number
-  longitude?: number
-  size?: string
-  width?: number
-  height?: number
-  monthly_rate: number
-  status: 'active' | 'inactive' | 'maintenance'
-  description?: string
-  created_at: string
-  updated_at: string
+  coordinates: {
+    latitude: string
+    longitude: string
+  }
+  dimensions: {
+    width: string
+    height: string
+    size: string
+    area: number
+  }
+  pricing: {
+    monthly_rate: string
+    formatted_rate: string
+    annual_rate: number
+  }
+  status: {
+    current: 'active' | 'inactive' | 'maintenance'
+    label: string
+    color: string
+    can_edit: boolean
+  }
+  description: string
+  contracts: {
+    active_count: number
+    is_occupied: boolean
+  }
+  timestamps: {
+    created_at: string
+    updated_at: string
+    created_at_human: string
+    updated_at_human: string
+  }
+  actions: {
+    can_view: boolean
+    can_edit: boolean
+    can_delete: boolean
+    can_duplicate: boolean
+  }
   company?: Company
   media?: MediaFile[]
 }
