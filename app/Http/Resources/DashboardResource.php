@@ -98,9 +98,9 @@ class DashboardResource extends JsonResource
             }),
             'revenue_breakdown' => [
                 'current_month' => number_format($this->resource['revenue_breakdown']['current_month'], 2),
-                'by_size' => collect($this->resource['revenue_breakdown']['by_size'])->map(function ($revenue, $size) {
+                'by_dimension' => collect($this->resource['revenue_breakdown']['by_dimension'])->map(function ($revenue, $dimension) {
                     return [
-                        'size' => $size ?: 'Unknown',
+                        'dimension' => $dimension ?: 'Unknown',
                         'revenue' => number_format($revenue, 2),
                         'raw_revenue' => $revenue,
                     ];

@@ -23,6 +23,8 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import FlashMessages from '@/components/FlashMessages.vue'
+import ToastProvider from '@/components/ToastProvider.vue'
+import Sonner from '@/components/ui/sonner.vue'
 
 interface Props {
   title?: string
@@ -148,5 +150,11 @@ const currentCompany = computed(() => page.props.auth?.user?.current_company)
         <slot />
       </div>
     </SidebarInset>
+    
+    <!-- Toast notifications -->
+    <ToastProvider />
+    
+    <!-- Sonner Toast -->
+    <Sonner theme="system" />
   </SidebarProvider>
 </template>

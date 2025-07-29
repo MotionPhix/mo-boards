@@ -26,7 +26,6 @@ class UpdateBillboardRequest extends FormRequest
             'location' => 'required|string|max:500',
             'latitude' => 'nullable|numeric|between:-90,90',
             'longitude' => 'nullable|numeric|between:-180,180',
-            'size' => 'nullable|string|max:50',
             'width' => 'nullable|numeric|min:0|max:1000',
             'height' => 'nullable|numeric|min:0|max:1000',
             'monthly_rate' => 'nullable|numeric|min:0|max:999999.99',

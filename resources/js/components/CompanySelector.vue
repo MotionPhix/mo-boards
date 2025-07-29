@@ -1,34 +1,3 @@
-<template>
-  <div class="flex items-center space-x-4">
-    <Label htmlFor="company-select" class="text-sm font-medium">
-      Company:
-    </Label>
-    <Select
-      :model-value="currentCompany?.id?.toString()"
-      @update:model-value="handleCompanyChange">
-      <SelectTrigger class="w-[280px]">
-        <SelectValue placeholder="Select a company" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem
-          v-for="company in companies"
-          :key="company.id"
-          :value="company.id.toString()"
-        >
-          {{ company.name }}
-        </SelectItem>
-        <SelectSeparator />
-        <SelectItem value="new">
-          <div class="flex items-center">
-            <Plus class="h-4 w-4 mr-2" />
-            Add New Company
-          </div>
-        </SelectItem>
-      </SelectContent>
-    </Select>
-  </div>
-</template>
-
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3'
 import { Plus } from 'lucide-vue-next'
@@ -48,7 +17,7 @@ interface Props {
   currentCompany?: Company
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const handleCompanyChange = (value: string) => {
   if (value === 'new') {
@@ -62,3 +31,33 @@ const handleCompanyChange = (value: string) => {
   }
 }
 </script>
+
+<template>
+  <div class="flex flex-col space-y-2">
+    <Label htmlFor="company-select" class="text-sm font-medium">
+      Company
+    </Label>
+    <Select
+      :model-value="currentCompany?.id?.toString()"
+      @update:model-value="handleCompanyChange">
+      <SelectTrigger class="w-[280px]">
+        <SelectValue placeholder="Select a company" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem
+          v-for="company in companies"
+          :key="company.id"
+          :value="company.id.toString()">
+          {{ company.name }}
+        </SelectItem>
+        <SelectSeparator />
+        <SelectItem value="new">
+          <div class="flex items-center">
+            <Plus class="h-4 w-4 mr-2" />
+            Add New Company
+          </div>
+        </SelectItem>
+      </SelectContent>
+    </Select>
+  </div>
+</template>

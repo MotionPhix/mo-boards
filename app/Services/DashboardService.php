@@ -254,19 +254,27 @@ class DashboardService
         $currentMonth = now()->startOfMonth();
         $currentMonthRevenue = $this->getMonthlyRevenue($company, $currentMonth);
 
-        // Revenue by billboard size/type
-        $revenueBySize = $company->billboards()
+        // Revenue by billboard dimensions (width x height)
+        $revenueByDimension = $company->billboards()
             ->join('contract_billboards', 'billboards.id', '=', 'contract_billboards.billboard_id')
             ->join('contracts', 'contract_billboards.contract_id', '=', 'contracts.id')
             ->where('contracts.status', 'active')
-            ->select('billboards.size', DB::raw('SUM(contract_billboards.rate) as revenue'))
-            ->groupBy('billboards.size')
-            ->pluck('revenue', 'size')
+            ->select(
+                'billboards.width', 
+                'billboards.height', 
+                DB::raw('SUM(contract_billboards.rate) as revenue')
+            )
+            ->groupBy('billboards.width', 'billboards.height')
+            ->get()
+            ->mapWithKeys(function ($item) {
+                $dimension = $item->width . 'm x ' . $item->height . 'm';
+                return [$dimension => $item->revenue];
+            })
             ->toArray();
 
         return [
             'current_month' => $currentMonthRevenue,
-            'by_size' => $revenueBySize,
+            'by_dimension' => $revenueByDimension,
             'projected_annual' => $currentMonthRevenue * 12,
         ];
     }

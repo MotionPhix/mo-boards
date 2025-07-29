@@ -1,13 +1,13 @@
 <template>
   <AppLayout 
-    title="Create Billboard" 
+    title="Edit Billboard" 
     :breadcrumbs="breadcrumbs">
     <div class="max-w-4xl">
         <!-- Header -->
         <div class="mb-8">
-          <h1 class="text-3xl font-bold tracking-tight text-foreground">Add New Billboard</h1>
+          <h1 class="text-3xl font-bold tracking-tight text-foreground">Edit Billboard</h1>
           <p class="text-muted-foreground">
-            Create a new billboard for your inventory
+            Update billboard information
           </p>
         </div>
 
@@ -16,7 +16,7 @@
           <CardHeader>
             <CardTitle className="text-xl">Billboard Information</CardTitle>
             <CardDescription className="text-muted-foreground">
-              Fill in the details for your new billboard
+              Edit the details for this billboard
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -200,7 +200,7 @@
                   class="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   <Loader2 v-if="form.processing" class="mr-2 h-4 w-4 animate-spin" />
-                  Create Billboard
+                  Update Billboard
                 </Button>
               </div>
             </form>
@@ -229,44 +229,61 @@ import { Textarea } from '@/components/ui/textarea'
 import LocationPicker from '@/components/map/LocationPicker.vue'
 import { useToast } from '@/composables/useToast'
 
+interface Props {
+  billboard: {
+    id: number
+    name: string
+    location: string
+    latitude: number | null
+    longitude: number | null
+    width: number | null
+    height: number | null
+    monthly_rate: number | null
+    status: 'active' | 'inactive' | 'maintenance'
+    description: string | null
+  }
+}
+
+const props = defineProps<Props>()
+
 const breadcrumbs = [
   { label: 'Billboards', href: route('billboards.index') },
-  { label: 'Create', href: route('billboards.create') }
+  { label: props.billboard.name, href: route('billboards.edit', props.billboard.id) }
 ]
 
 const toast = useToast()
 
 const form = useForm({
-  name: '',
-  location: '',
-  latitude: null as number | null,
-  longitude: null as number | null,
-  width: null as number | null,
-  height: null as number | null,
-  monthly_rate: null as number | null,
-  status: 'active' as 'active' | 'inactive' | 'maintenance',
-  description: '',
+  name: props.billboard.name,
+  location: props.billboard.location,
+  latitude: props.billboard.latitude as number | null,
+  longitude: props.billboard.longitude as number | null,
+  width: props.billboard.width as number | null,
+  height: props.billboard.height as number | null,
+  monthly_rate: props.billboard.monthly_rate as number | null,
+  status: props.billboard.status as 'active' | 'inactive' | 'maintenance',
+  description: props.billboard.description || '',
 })
 
 const submit = () => {
-  form.post(route('billboards.store'), {
+  form.put(route('billboards.update', props.billboard.id), {
     onStart: () => {
       toast.toast({
-        title: 'Creating billboard...',
+        title: 'Updating billboard...',
         description: 'Please wait while we process your request.',
       })
     },
     onSuccess: () => {
       toast.toast({
         title: 'Success',
-        description: `Billboard "${form.name}" created successfully!`,
+        description: `Billboard "${form.name}" updated successfully!`,
         variant: 'default',
       })
     },
     onError: () => {
       toast.toast({
         title: 'Error',
-        description: 'Failed to create billboard. Please check the form and try again.',
+        description: 'Failed to update billboard. Please check the form and try again.',
         variant: 'destructive',
       })
     }

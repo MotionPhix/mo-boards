@@ -72,13 +72,14 @@ final class RegisteredUserController extends Controller
       $user->companies()->attach($company->id, [
         'is_owner' => true,
         'joined_at' => now(),
+        'role' => 'company_owner',
       ]);
 
       // Set current company for user
       $user->update(['current_company_id' => $company->id]);
 
-      // Assign role (you might want to create roles using Spatie Permission)
-      // $user->assignRole('company_owner');
+      // Assign role using Spatie Permission
+      $user->assignRole('company_owner');
 
       event(new Registered($user));
 

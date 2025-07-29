@@ -74,12 +74,12 @@ export function useSelectOptions() {
   ])
 
   /**
-   * Billboard size options
+   * Billboard dimension options
    */
-  const billboardSizeOptions: ComputedRef<SelectOption[]> = computed(() => [
-    { value: '14x48', label: '14\' x 48\' (Bulletin)' },
-    { value: '12x24', label: '12\' x 24\' (Poster)' },
-    { value: '6x12', label: '6\' x 12\' (Junior)' },
+  const billboardDimensionOptions: ComputedRef<SelectOption[]> = computed(() => [
+    { value: '14x48', label: '14m x 48m (Bulletin)' },
+    { value: '12x24', label: '12m x 24m (Poster)' },
+    { value: '6x12', label: '6m x 12m (Junior)' },
     { value: 'custom', label: 'Custom' },
   ])
 
@@ -118,7 +118,7 @@ export function useSelectOptions() {
     contractStatusOptions,
     industryOptions,
     companySizeOptions,
-    billboardSizeOptions,
+    billboardDimensionOptions,
     userRoleOptions,
     toBackendValue,
     toFrontendValue,

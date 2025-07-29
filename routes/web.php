@@ -9,6 +9,10 @@ Route::get('/', function () {
     return Inertia::render('Welcome');
 })->name('home');
 
+// Team invitation accept route - publicly accessible
+Route::get('/team/invitation/{token}', [\App\Http\Controllers\TeamController::class, 'acceptInvitation'])
+    ->name('team.accept-invitation');
+
 Route::middleware(['auth', 'verified', 'ensure.company.access'])->group(function () {
   Route::get(
     '/dashboard',
@@ -63,6 +67,11 @@ Route::middleware(['auth', 'verified', 'ensure.company.access'])->group(function
     '/team/invite',
     [\App\Http\Controllers\TeamController::class, 'invite']
   )->name('team.invite');
+
+  Route::delete(
+    '/team/invitations/{invitation}',
+    [\App\Http\Controllers\TeamController::class, 'cancelInvitation']
+  )->name('team.cancel-invitation');
 
   // Profile routes
   Route::get(

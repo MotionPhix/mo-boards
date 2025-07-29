@@ -42,7 +42,7 @@ class Company extends Model implements HasMedia
   public function users(): BelongsToMany
   {
     return $this->belongsToMany(User::class)
-      ->withPivot('is_owner', 'joined_at')
+      ->withPivot('is_owner', 'joined_at', 'role')
       ->withTimestamps();
   }
 
@@ -73,10 +73,26 @@ class Company extends Model implements HasMedia
     return $this->hasMany(ContractTemplate::class);
   }
 
+  public function invitations(): HasMany
+  {
+    return $this->hasMany(TeamInvitation::class);
+  }
+
   public function scopeWithActiveContracts($query)
   {
     return $query->whereHas('contracts', function ($q) {
       $q->where('status', 'active');
     });
+  }
+
+  /**
+   * Get the ID of the company owner
+   * 
+   * @return int|null
+   */
+  public function getOwnerIdAttribute()
+  {
+    $owner = $this->users()->wherePivot('is_owner', true)->first();
+    return $owner ? $owner->id : null;
   }
 }

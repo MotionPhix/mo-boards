@@ -1,17 +1,16 @@
 <template>
   <AppLayout title="Billboards">
-    <div class="py-6">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="max-w-4xl w-full">
         <!-- Header -->
-        <div class="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-8 space-y-4 lg:space-y-0">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div>
-            <h1 class="text-3xl font-bold text-gray-900">Billboard Management</h1>
-            <p class="mt-2 text-gray-600">
+            <h1 class="text-3xl font-bold tracking-tight text-foreground">Billboard Management</h1>
+            <p class="text-muted-foreground">
               Manage your outdoor advertising inventory
             </p>
-            <div v-if="billboards.total > 0" class="mt-3 flex flex-wrap gap-4 text-sm text-gray-500">
+            <div v-if="billboards.total > 0" class="mt-3 flex flex-wrap gap-4 text-sm text-muted-foreground">
               <span class="flex items-center">
-                <div class="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                <div class="w-2 h-2 bg-emerald-500 rounded-full mr-2"></div>
                 {{ getActiveCount() }} Active
               </span>
               <span class="flex items-center">
@@ -19,12 +18,12 @@
                 {{ getOccupiedCount() }} Occupied
               </span>
               <span class="flex items-center">
-                <div class="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
+                <div class="w-2 h-2 bg-muted rounded-full mr-2"></div>
                 {{ billboards.total }} Total
               </span>
             </div>
           </div>
-          <Button @click="router.visit(route('billboards.create'))" size="lg" class="shadow-sm">
+          <Button @click="router.visit(route('billboards.create'))" size="lg" variant="default" class="shadow-sm">
             <Plus class="h-4 w-4 mr-2" />
             Add Billboard
           </Button>
@@ -38,13 +37,13 @@
         />
 
         <!-- Filters -->
-        <Card class="mb-6 shadow-sm">
+        <Card class="mb-6 shadow-sm bg-card text-card-foreground">
           <CardContent class="p-6">
             <div class="flex flex-col lg:flex-row gap-4">
               <div class="flex-1">
-                <Label htmlFor="search" class="text-sm font-medium text-gray-700">Search Billboards</Label>
+                <Label htmlFor="search" class="text-sm font-medium">Search Billboards</Label>
                 <div class="relative mt-1">
-                  <Search class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Search class="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                   <Input
                     id="search"
                     v-model="searchForm.search"
@@ -56,7 +55,7 @@
                 </div>
               </div>
               <div class="w-full lg:w-48">
-                <Label htmlFor="status" class="text-sm font-medium text-gray-700">Filter by Status</Label>
+                <Label htmlFor="status" class="text-sm font-medium">Filter by Status</Label>
                 <Select
                   :model-value="searchForm.status"
                   @update:model-value="updateStatus"
@@ -89,19 +88,19 @@
             </div>
 
             <!-- Results Summary -->
-            <div v-if="billboards.total > 0" class="mt-4 pt-4 border-t border-gray-100">
-              <p class="text-sm text-gray-600">
+            <div v-if="billboards.total > 0" class="mt-4 pt-4 border-t border-border">
+              <p class="text-sm text-muted-foreground">
                 Showing <span class="font-medium">{{ billboards.meta.from }}</span> to
                 <span class="font-medium">{{ billboards.meta.to }}</span> of
                 <span class="font-medium">{{ billboards.meta.total }}</span> billboards
-                <span v-if="hasActiveFilters" class="text-blue-600"> (filtered)</span>
+                <span v-if="hasActiveFilters" class="text-primary"> (filtered)</span>
               </p>
             </div>
           </CardContent>
         </Card>
 
         <!-- Billboards Table -->
-        <Card>
+        <Card class="bg-card text-card-foreground">
           <CardContent class="p-0">
             <div v-if="billboards.data.length > 0">
               <BillboardsTable
@@ -125,7 +124,7 @@
                     <Plus class="h-4 w-4 mr-2" />
                     Add Your First Billboard
                   </Button>
-                  <div class="text-sm text-gray-500">
+                  <div class="text-sm text-muted-foreground">
                     <p>Get started by adding billboard locations to your inventory.</p>
                   </div>
                 </template>
@@ -138,7 +137,6 @@
         <div v-if="billboards.data.length > 0" class="mt-6">
           <Pagination :links="billboards.links" />
         </div>
-      </div>
     </div>
   </AppLayout>
 </template>
