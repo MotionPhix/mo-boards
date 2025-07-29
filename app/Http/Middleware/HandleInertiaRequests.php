@@ -37,10 +37,10 @@ class HandleInertiaRequests extends Middleware
           'id' => $request->user()->id,
           'name' => $request->user()->name,
           'email' => $request->user()->email,
-          'phone' => $request->user()->phone,
-          'avatar' => $request->user()->avatar,
+          'phone' => $request->user()->phone ?? null,
+          'avatar' => $request->user()->avatar ?? null,
           'current_company_id' => $request->user()->current_company_id,
-          'last_active_at' => $request->user()->last_active_at,
+          'last_active_at' => $request->user()->last_active_at ?? null,
           'companies' => $request->user()->companies()->get()->map(function ($company) {
             return [ // ->with('pivot')
               'id' => $company->id,
