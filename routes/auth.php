@@ -19,14 +19,19 @@ Route::middleware('guest')->group(function () {
 
     Route::post('register', [RegisteredUserController::class, 'store']);
 
+    // Registration step validation routes
+    Route::post('register/validate-step-1', [RegisteredUserController::class, 'validateStep1']);
+    Route::post('register/validate-step-2', [RegisteredUserController::class, 'validateStep2']);
+    Route::post('register/validate-step-3', [RegisteredUserController::class, 'validateStep3']);
+
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
-        
+
     Route::get('register/invited', [InvitedRegisterController::class, 'create'])
         ->name('register.invited');
-        
+
     Route::post('register/invited', [InvitedRegisterController::class, 'store']);
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])

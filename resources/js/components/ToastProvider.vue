@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useToast, type Toast } from '@/composables/useToast'
 import { onClickOutside } from '@vueuse/core'
-import UiToast from '@/components/ui/toast.vue'
+import UiToast from '@/components/toast.vue'
 
 const { toasts, dismiss } = useToast()
 const toast = ref<HTMLDivElement | null>(null)

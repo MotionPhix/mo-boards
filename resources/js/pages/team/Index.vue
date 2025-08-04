@@ -3,8 +3,8 @@ import { ref, computed } from 'vue'
 import { Head, router, usePage } from '@inertiajs/vue3'
 import { useToast } from '@/composables/useToast'
 import { useTheme } from '@/composables/useTheme'
-import { 
-  Users, UserPlus, Mail, Check, X, 
+import {
+  Users, UserPlus, Mail, Check, X,
   Trash2, Edit, ShieldCheck, Shield, AlertTriangle
 } from 'lucide-vue-next'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -82,6 +82,8 @@ const toast = useToast()
 const theme = useTheme()
 const page = usePage()
 
+console.log(props.roles);
+
 // State for invite form
 const inviteDialogOpen = ref(false)
 const editMemberDialogOpen = ref(false)
@@ -132,7 +134,7 @@ const editMember = (member: TeamMember) => {
 // Update team member
 const updateMember = () => {
   if (!selectedMember.value) return
-  
+
   router.put(route('team.update', { member: selectedMember.value.id }), {
     role: form.value.role
   }, {
@@ -183,13 +185,13 @@ const getRoleBadgeVariant = (role: string): "default" | "destructive" | "outline
   const mapping: Record<string, "default" | "destructive" | "outline" | "secondary"> = {
     'owner': 'destructive',
     'company_owner': 'destructive',
-    'admin': 'secondary', 
+    'admin': 'secondary',
     'manager': 'default',
     'member': 'outline',
     'editor': 'secondary',
     'viewer': 'outline'
   };
-  
+
   return mapping[role] || 'outline';
 }
 
@@ -197,7 +199,7 @@ const getRoleDisplay = (role: string) => {
   return {
     'owner': 'Owner',
     'company_owner': 'Company Owner',
-    'admin': 'Administrator', 
+    'admin': 'Administrator',
     'manager': 'Manager',
     'member': 'Member',
     'editor': 'Editor',
@@ -207,7 +209,7 @@ const getRoleDisplay = (role: string) => {
 
 // Role icon
 const getRoleIcon = (role: string) => {
-  return role === 'owner' || role === 'admin' 
+  return role === 'owner' || role === 'admin'
     ? ShieldCheck
     : Shield
 }
@@ -239,7 +241,7 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
             Manage your team members and their access levels
           </p>
         </div>
-        
+
         <Button v-if="userPermissions.canInviteUsers" @click="inviteDialogOpen = true" class="shadow-sm">
           <UserPlus class="h-4 w-4 mr-2" />
           Invite User
@@ -291,21 +293,21 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
                   <TableCell>{{ member.joined_at }}</TableCell>
                   <TableCell class="text-right">
                     <div class="flex justify-end gap-2">
-                      <Button 
-                        v-if="member.can.edit && userPermissions.canUpdateRoles" 
-                        @click="editMember(member)" 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        v-if="member.can.edit && userPermissions.canUpdateRoles"
+                        @click="editMember(member)"
+                        variant="ghost"
+                        size="sm"
                         class="h-8 w-8 p-0"
                       >
                         <span class="sr-only">Edit</span>
                         <Edit class="h-4 w-4" />
                       </Button>
-                      <Button 
-                        v-if="member.can.delete && userPermissions.canRemoveUsers" 
-                        @click="removeMember(member)" 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        v-if="member.can.delete && userPermissions.canRemoveUsers"
+                        @click="removeMember(member)"
+                        variant="ghost"
+                        size="sm"
                         class="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
                       >
                         <span class="sr-only">Remove</span>
@@ -351,17 +353,18 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Sent</TableHead>
                   <TableHead>Expires</TableHead>
-                  <TableHead class="text-right">Actions</TableHead>
+                  <TableHead class="text-right"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 <TableRow v-for="invitation in invitations" :key="invitation.id" class="hover:bg-muted/50">
-                  <TableCell>{{ invitation.name }}</TableCell>
-                  <TableCell>{{ invitation.email }}</TableCell>
+                  <TableCell class="grid">
+                    <strong>{{ invitation.name }}</strong>
+                    <span class="text-muted-foreground">{{ invitation.email }}</span>
+                  </TableCell>
                   <TableCell>
                     <Badge :variant="getRoleBadgeVariant(invitation.role)" class="flex items-center gap-1 w-fit">
                       <component :is="getRoleIcon(invitation.role)" class="h-3 w-3" />
@@ -372,13 +375,12 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
                   <TableCell>{{ invitation.expires_at }}</TableCell>
                   <TableCell class="text-right">
                     <div class="flex justify-end gap-2">
-                      <Button 
+                      <Button
                         v-if="invitation.can.cancel"
-                        @click="cancelInvitation(invitation)" 
-                        variant="ghost" 
-                        size="sm" 
-                        class="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
-                      >
+                        @click="cancelInvitation(invitation)"
+                        variant="ghost"
+                        size="sm"
+                        class="h-8 w-8 p-0 text-destructive hover:bg-destructive/10">
                         <span class="sr-only">Cancel</span>
                         <X class="h-4 w-4" />
                       </Button>
@@ -402,6 +404,7 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
             Understanding access levels for each role
           </CardDescription>
         </CardHeader>
+
         <CardContent>
           <div class="space-y-6">
             <div v-for="role in props.roles" :key="role.id" class="space-y-2">

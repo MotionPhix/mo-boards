@@ -1,13 +1,8 @@
-<script lang="ts">
-export const description = 'A sidebar that collapses to icons.'
-export const iframeHeight = '800px'
-export const containerClass = 'w-full h-full'
-</script>
-
 <script setup lang="ts">
 import { computed } from 'vue'
-import { usePage } from '@inertiajs/vue3'
+import { Link, Head, usePage } from '@inertiajs/vue3'
 import AppSidebar from '@/components/AppSidebar.vue'
+import QuickActionMenu from '@/components/QuickActionMenu.vue'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -23,8 +18,9 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import FlashMessages from '@/components/FlashMessages.vue'
-import ToastProvider from '@/components/ToastProvider.vue'
-import Sonner from '@/components/ui/sonner.vue'
+import { Toaster } from 'vue-sonner'
+import 'vue-sonner/style.css'
+import { useDark } from '@vueuse/core'
 
 interface Props {
   title?: string
@@ -40,6 +36,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const page = usePage()
+
+const isDark = useDark()
 
 // Generate breadcrumbs based on current route if not provided
 const computedBreadcrumbs = computed(() => {
@@ -104,9 +102,28 @@ const currentCompany = computed(() => page.props.auth?.user?.current_company)
 </script>
 
 <template>
+  <Head>
+    <title>{{ props.title }}</title>
+
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/build/manifest.json" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="msapplication-TileColor" content="#ffffff" />
+    <meta name="msapplication-TileImage" content="/mstile-150x150.png" />
+    <meta name="theme-color" content="#ffffff" />
+  </Head>
+
+  <!-- Sonner Toast -->
+  <Toaster :theme="isDark ? 'dark' : 'light'" position="top-right" rich-colors />
+
   <SidebarProvider>
     <AppSidebar />
-    <SidebarInset>
+    <SidebarInset class="overflow-x-hidden">
       <!-- Header with breadcrumbs -->
       <header class="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
         <div class="flex items-center gap-2 px-4">
@@ -118,13 +135,18 @@ const currentCompany = computed(() => page.props.auth?.user?.current_company)
             <BreadcrumbList>
               <template v-for="(crumb, index) in computedBreadcrumbs" :key="index">
                 <BreadcrumbItem v-if="index < computedBreadcrumbs.length - 1">
-                  <BreadcrumbLink v-if="crumb.href" :href="crumb.href">
+                  <BreadcrumbLink
+                    v-if="crumb.href"
+                    :href="crumb.href"
+                    :as="Link">
                     {{ crumb.label }}
                   </BreadcrumbLink>
                   <span v-else>{{ crumb.label }}</span>
                 </BreadcrumbItem>
 
-                <BreadcrumbSeparator v-if="index < computedBreadcrumbs.length - 1" />
+                <BreadcrumbSeparator
+                  v-if="index < computedBreadcrumbs.length - 1"
+                />
 
                 <BreadcrumbItem v-if="index === computedBreadcrumbs.length - 1">
                   <BreadcrumbPage>{{ crumb.label }}</BreadcrumbPage>
@@ -134,11 +156,11 @@ const currentCompany = computed(() => page.props.auth?.user?.current_company)
           </Breadcrumb>
 
           <!-- Company indicator -->
-          <div v-if="currentCompany" class="ml-auto">
+          <!-- <div v-if="currentCompany" class="ml-auto">
             <span class="text-xs bg-muted px-2 py-1 rounded-md font-medium">
               {{ currentCompany.name }}
             </span>
-          </div>
+          </div> -->
         </div>
       </header>
 
@@ -150,11 +172,8 @@ const currentCompany = computed(() => page.props.auth?.user?.current_company)
         <slot />
       </div>
     </SidebarInset>
-    
-    <!-- Toast notifications -->
-    <ToastProvider />
-    
-    <!-- Sonner Toast -->
-    <Sonner theme="system" />
+
+    <!-- Quick Action Menu -->
+    <QuickActionMenu />
   </SidebarProvider>
 </template>

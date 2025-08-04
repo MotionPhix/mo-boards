@@ -9,10 +9,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
+use App\Traits\HasUuid;
 
 class Contract extends Model implements HasMedia
 {
-  use HasFactory, InteractsWithMedia;
+  use HasFactory, InteractsWithMedia, HasUuid;
 
   protected $fillable = [
     'contract_number',
@@ -28,13 +29,19 @@ class Contract extends Model implements HasMedia
     'end_date',
     'total_amount',
     'monthly_amount',
+    'design', // The editable HTML content with placeholders
+    'content', // The final HTML content with placeholders replaced
+    'currency',
+    'exchange_rate',
     'payment_terms',
     'status',
     'terms_and_conditions',
     'custom_fields_data',
     'notes',
+    'document_content',
     'signed_at',
     'signed_by',
+    'custom_field_values',
   ];
 
   protected $casts = [
@@ -42,16 +49,30 @@ class Contract extends Model implements HasMedia
     'end_date' => 'date',
     'total_amount' => 'decimal:2',
     'monthly_amount' => 'decimal:2',
+    'exchange_rate' => 'decimal:6',
     'terms_and_conditions' => 'array',
     'custom_fields_data' => 'array',
+    'custom_field_values' => 'array',
     'signed_at' => 'datetime',
   ];
 
   protected static function booted(): void
   {
     static::creating(function (Contract $contract) {
-      if (empty($contract->contract_number)) {
-        $contract->contract_number = static::generateContractNumber($contract->company_id);
+      // Auto-generate contract number if not provided
+      if (empty($contract->contract_number) && $contract->company) {
+        $settingsService = app(\App\Services\CompanySettingsService::class);
+        $contract->contract_number = $settingsService->generateContractNumber($contract->company);
+      }
+
+      // Set default currency from company settings if not provided
+      if (empty($contract->currency) && $contract->company) {
+        $contract->currency = $contract->company->currency ?? 'USD';
+      }
+
+      // Set default exchange rate
+      if (is_null($contract->exchange_rate)) {
+        $contract->exchange_rate = 1.000000;
       }
     });
   }

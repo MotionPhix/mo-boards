@@ -36,6 +36,8 @@ class DashboardTestDataSeeder extends Seeder
       'current_company_id' => $company->id,
     ]);
 
+    $user->assignRole('company_owner');
+
     // Attach user to company if not already attached
     if (!$company->users()->where('user_id', $user->id)->exists()) {
       $company->users()->attach($user->id, [
@@ -49,7 +51,6 @@ class DashboardTestDataSeeder extends Seeder
       [
         'name' => 'Highway Premium Billboard',
         'location' => 'I-95 North, Mile Marker 45',
-        'size' => 'Large',
         'width' => 48.0,
         'height' => 14.0,
         'monthly_rate' => 3500.00,
@@ -58,7 +59,6 @@ class DashboardTestDataSeeder extends Seeder
       [
         'name' => 'Downtown Digital Display',
         'location' => 'Main Street & 5th Avenue',
-        'size' => 'Digital',
         'width' => 20.0,
         'height' => 10.0,
         'monthly_rate' => 5000.00,
@@ -67,7 +67,6 @@ class DashboardTestDataSeeder extends Seeder
       [
         'name' => 'Shopping Center Billboard',
         'location' => 'Westfield Mall Entrance',
-        'size' => 'Medium',
         'width' => 24.0,
         'height' => 12.0,
         'monthly_rate' => 2500.00,
@@ -76,7 +75,6 @@ class DashboardTestDataSeeder extends Seeder
       [
         'name' => 'Airport Terminal Display',
         'location' => 'Terminal A, Gate 15',
-        'size' => 'Small',
         'width' => 12.0,
         'height' => 8.0,
         'monthly_rate' => 1800.00,
@@ -85,7 +83,6 @@ class DashboardTestDataSeeder extends Seeder
       [
         'name' => 'Stadium Exterior',
         'location' => 'Sports Complex, North Wall',
-        'size' => 'Large',
         'width' => 60.0,
         'height' => 20.0,
         'monthly_rate' => 4500.00,

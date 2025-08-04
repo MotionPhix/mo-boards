@@ -1,7 +1,7 @@
 <template>
   <div class="text-center py-12">
     <div class="flex justify-center mb-4">
-      <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center">
+      <div class="w-24 h-24 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
         <component
           :is="icon"
           :class="iconClass"
@@ -9,11 +9,11 @@
       </div>
     </div>
 
-    <h3 class="text-lg font-semibold text-gray-900 mb-2">
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">
       {{ title }}
     </h3>
 
-    <p class="text-gray-500 mb-6 max-w-md mx-auto">
+    <p class="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
       {{ description }}
     </p>
 
@@ -51,6 +51,6 @@ interface Props {
 }
 
 withDefaults(defineProps<Props>(), {
-  iconClass: 'w-12 h-12 text-gray-400',
+  iconClass: 'w-12 h-12 text-gray-400 dark:text-gray-500',
 })
 </script>

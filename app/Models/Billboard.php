@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
+use App\Traits\HasUuid;
 
 class Billboard extends Model implements HasMedia
 {
-  use HasFactory, InteractsWithMedia;
+  use HasFactory, InteractsWithMedia, HasUuid;
 
   protected $fillable = [
     'company_id',
@@ -38,13 +39,10 @@ class Billboard extends Model implements HasMedia
   protected static function booted(): void
   {
     static::creating(function (Billboard $billboard) {
-      if (empty($billboard->code)) {
-        $billboard->code = 'BB' . str_pad(
-            Billboard::where('company_id', $billboard->company_id)->count() + 1,
-            3,
-            '0',
-            STR_PAD_LEFT
-          );
+      // Auto-generate billboard code if not provided
+      if (empty($billboard->code) && $billboard->company) {
+        $settingsService = app(\App\Services\CompanySettingsService::class);
+        $billboard->code = $settingsService->generateBillboardCode($billboard->company);
       }
     });
   }

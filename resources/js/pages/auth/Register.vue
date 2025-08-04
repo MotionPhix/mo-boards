@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onUnmounted, ref } from 'vue';
-import { Head, Link, useForm } from '@inertiajs/vue3'
-import { Loader2 } from 'lucide-vue-next'
+import { onUnmounted, ref, computed, watch } from 'vue';
+import { Head, Link, useForm, router } from '@inertiajs/vue3'
+import { Loader2, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-vue-next'
 import GuestLayout from '@/layouts/AuthLayout.vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,9 +15,20 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useStorage } from '@vueuse/core';
+import axios from 'axios';
 
-const step = useStorage('registration_steps', 1)
+const step = useStorage('registration_step', 1)
+const showPassword = ref(false)
+const showPasswordConfirmation = ref(false)
+const validationErrors = ref<Record<string, string[]>>({})
+const isValidatingStep = ref(false)
+const stepValidationStatus = ref<Record<number, boolean>>({
+  1: false,
+  2: false,
+  3: false
+})
 
 const form = useForm({
   name: '',
@@ -30,6 +41,25 @@ const form = useForm({
   company_size: '',
   address: '',
   subscription_plan: '',
+})
+
+// Watch for form changes to clear validation status when user modifies data
+watch(() => [form.name, form.email, form.phone, form.password, form.password_confirmation], () => {
+  if (stepValidationStatus.value[1]) {
+    stepValidationStatus.value[1] = false
+  }
+}, { deep: true })
+
+watch(() => [form.company_name, form.industry, form.company_size, form.address], () => {
+  if (stepValidationStatus.value[2]) {
+    stepValidationStatus.value[2] = false
+  }
+}, { deep: true })
+
+watch(() => form.subscription_plan, () => {
+  if (stepValidationStatus.value[3]) {
+    stepValidationStatus.value[3] = false
+  }
 })
 
 const plans = [
@@ -70,18 +100,207 @@ const plans = [
   }
 ]
 
-const nextStep = () => {
-  if (step.value < 3) {
+// Password strength validation
+const passwordStrength = computed(() => {
+  const password = form.password
+  if (!password) return { score: 0, feedback: [] }
+
+  let score = 0
+  const feedback = []
+
+  if (password.length >= 8) score++
+  else feedback.push('At least 8 characters')
+
+  if (/[a-z]/.test(password)) score++
+  else feedback.push('One lowercase letter')
+
+  if (/[A-Z]/.test(password)) score++
+  else feedback.push('One uppercase letter')
+
+  if (/\d/.test(password)) score++
+  else feedback.push('One number')
+
+  if (/[^a-zA-Z\d]/.test(password)) score++
+  else feedback.push('One special character')
+
+  return { score, feedback }
+})
+
+const passwordStrengthColor = computed(() => {
+  const score = passwordStrength.value.score
+  if (score <= 2) return 'bg-red-500'
+  if (score <= 3) return 'bg-yellow-500'
+  if (score <= 4) return 'bg-blue-500'
+  return 'bg-green-500'
+})
+
+const passwordStrengthText = computed(() => {
+  const score = passwordStrength.value.score
+  if (score <= 2) return 'Weak'
+  if (score <= 3) return 'Fair'
+  if (score <= 4) return 'Good'
+  return 'Strong'
+})
+
+// Check if current step is valid
+const isCurrentStepValid = computed(() => {
+  if (step.value === 1) {
+    return form.name && form.email && form.password && form.password_confirmation &&
+           form.password === form.password_confirmation && passwordStrength.value.score >= 3
+  }
+  if (step.value === 2) {
+    return form.company_name
+  }
+  if (step.value === 3) {
+    return form.subscription_plan
+  }
+  return false
+})
+
+// Step validation functions
+const validateStep = async (stepNumber: number): Promise<boolean> => {
+  isValidatingStep.value = true
+  validationErrors.value = {}
+
+  try {
+    let data = {}
+
+    if (stepNumber === 1) {
+      data = {
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        password: form.password,
+        password_confirmation: form.password_confirmation,
+      }
+    } else if (stepNumber === 2) {
+      data = {
+        company_name: form.company_name,
+        industry: form.industry,
+        company_size: form.company_size,
+        address: form.address,
+      }
+    } else if (stepNumber === 3) {
+      data = {
+        subscription_plan: form.subscription_plan,
+      }
+    }
+
+    const response = await axios.post(`/register/validate-step-${stepNumber}`, data)
+
+    if (response.data.valid) {
+      stepValidationStatus.value[stepNumber] = true
+      return true
+    }
+  } catch (error: any) {
+    console.error('Validation error:', error)
+    stepValidationStatus.value[stepNumber] = false
+
+    if (error.response?.status === 422) {
+      validationErrors.value = error.response.data.errors || {}
+    } else {
+      validationErrors.value = {
+        general: ['An error occurred during validation. Please try again.']
+      }
+    }
+    return false
+  } finally {
+    isValidatingStep.value = false
+  }
+
+  return false
+}
+
+const nextStep = async () => {
+  const isValid = await validateStep(step.value)
+  if (isValid && step.value < 3) {
     step.value++
+    // Clear any previous validation errors when moving to next step
+    validationErrors.value = {}
   }
 }
 
-const submit = () => {
-  form.post(route('register'))
+const previousStep = () => {
+  if (step.value > 1) {
+    step.value--
+    validationErrors.value = {}
+  }
+}
+
+const submit = async () => {
+  // Clear any previous errors
+  validationErrors.value = {}
+
+  // Validate all steps before submitting
+  let allStepsValid = true
+
+  for (let i = 1; i <= 3; i++) {
+    const isValid = await validateStep(i)
+    if (!isValid) {
+      allStepsValid = false
+      step.value = i // Go to the first invalid step
+      break
+    }
+  }
+
+  if (allStepsValid) {
+    form.post(route('register'), {
+      onError: (errors) => {
+        console.error('Registration errors:', errors)
+        validationErrors.value = {}
+
+        // Convert Inertia errors to our format
+        Object.keys(errors).forEach(key => {
+          validationErrors.value[key] = [errors[key]]
+        })
+
+        // If there are validation errors, go back to the appropriate step
+        if (errors.name || errors.email || errors.password || errors.phone) {
+          step.value = 1
+        } else if (errors.company_name || errors.industry || errors.company_size || errors.address) {
+          step.value = 2
+        } else if (errors.subscription_plan) {
+          step.value = 3
+        }
+      },
+      onSuccess: () => {
+        // Clear storage on successful registration
+        step.value = 1
+        stepValidationStatus.value = { 1: false, 2: false, 3: false }
+      }
+    })
+  }
+}
+
+// Real-time validation for email
+const checkEmailAvailability = async () => {
+  if (form.email && form.email.includes('@') && form.email.length > 5) {
+    try {
+      // Clear previous email errors
+      if (validationErrors.value.email) {
+        delete validationErrors.value.email
+      }
+
+      await axios.post('/register/validate-step-1', {
+        name: form.name || 'temp',
+        email: form.email,
+        phone: form.phone,
+        password: form.password || 'TempPass123!',
+        password_confirmation: form.password || 'TempPass123!',
+      })
+    } catch (error: any) {
+      if (error.response?.data?.errors?.email) {
+        validationErrors.value = {
+          ...validationErrors.value,
+          email: error.response.data.errors.email
+        }
+      }
+    }
+  }
 }
 
 onUnmounted(() => {
-  step.value = null
+  // Don't clear step on unmount - let user resume where they left off
 })
 </script>
 
@@ -94,27 +313,49 @@ onUnmounted(() => {
       <div class="flex justify-center mb-8">
         <div class="flex items-center space-x-4">
           <div :class="[
-            'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
+            'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium relative',
             step >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
           ]">
-            1
+            <CheckCircle v-if="stepValidationStatus[1]" class="w-4 h-4" />
+            <span v-else>1</span>
           </div>
-          <div class="w-8 h-0.5 bg-gray-200"></div>
+          <div :class="[
+            'w-8 h-0.5',
+            step > 1 ? 'bg-blue-600' : 'bg-gray-200'
+          ]"></div>
           <div :class="[
             'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
             step >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
           ]">
-            2
+            <CheckCircle v-if="stepValidationStatus[2]" class="w-4 h-4" />
+            <span v-else>2</span>
           </div>
-          <div class="w-8 h-0.5 bg-gray-200"></div>
+          <div :class="[
+            'w-8 h-0.5',
+            step > 2 ? 'bg-blue-600' : 'bg-gray-200'
+          ]"></div>
           <div :class="[
             'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
             step >= 3 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
           ]">
-            3
+            <CheckCircle v-if="stepValidationStatus[3]" class="w-4 h-4" />
+            <span v-else>3</span>
           </div>
         </div>
       </div>
+
+      <!-- Validation Errors Alert -->
+      <Alert v-if="Object.keys(validationErrors).length > 0" class="mb-6" variant="destructive">
+        <AlertCircle class="h-4 w-4" />
+        <AlertDescription>
+          Please fix the following errors:
+          <ul class="mt-2 list-disc list-inside">
+            <li v-for="(errors, field) in validationErrors" :key="field">
+              <span class="capitalize">{{ field.replace('_', ' ') }}:</span> {{ Array.isArray(errors) ? errors[0] : errors }}
+            </li>
+          </ul>
+        </AlertDescription>
+      </Alert>
 
       <!-- Step 1: Personal Information -->
       <Card v-if="step === 1" class="shadow-none border-none space-y-6">
@@ -134,11 +375,12 @@ onUnmounted(() => {
                 v-model="form.name"
                 type="text"
                 class="mt-1"
-                :class="{ 'border-red-500': form.errors.name }"
+                :class="{ 'border-red-500': validationErrors.name || form.errors.name }"
                 required
+                autocomplete="name"
               />
-              <div v-if="form.errors.name" class="text-red-600 text-sm mt-1">
-                {{ form.errors.name }}
+              <div v-if="validationErrors.name || form.errors.name" class="text-red-600 text-sm mt-1">
+                {{ Array.isArray(validationErrors.name) ? validationErrors.name[0] : validationErrors.name || form.errors.name }}
               </div>
             </div>
 
@@ -149,11 +391,13 @@ onUnmounted(() => {
                 v-model="form.email"
                 type="email"
                 class="mt-1"
-                :class="{ 'border-red-500': form.errors.email }"
+                :class="{ 'border-red-500': validationErrors.email || form.errors.email }"
+                @blur="checkEmailAvailability"
                 required
+                autocomplete="email"
               />
-              <div v-if="form.errors.email" class="text-red-600 text-sm mt-1">
-                {{ form.errors.email }}
+              <div v-if="validationErrors.email || form.errors.email" class="text-red-600 text-sm mt-1">
+                {{ Array.isArray(validationErrors.email) ? validationErrors.email[0] : validationErrors.email || form.errors.email }}
               </div>
             </div>
 
@@ -164,40 +408,90 @@ onUnmounted(() => {
                 v-model="form.phone"
                 type="tel"
                 class="mt-1"
-                :class="{ 'border-red-500': form.errors.phone }"
+                :class="{ 'border-red-500': validationErrors.phone || form.errors.phone }"
+                autocomplete="tel"
               />
-              <div v-if="form.errors.phone" class="text-red-600 text-sm mt-1">
-                {{ form.errors.phone }}
+              <div v-if="validationErrors.phone || form.errors.phone" class="text-red-600 text-sm mt-1">
+                {{ Array.isArray(validationErrors.phone) ? validationErrors.phone[0] : validationErrors.phone || form.errors.phone }}
               </div>
             </div>
 
             <div>
               <Label htmlFor="password">Password *</Label>
-              <Input
-                id="password"
-                v-model="form.password"
-                type="password"
-                class="mt-1"
-                :class="{ 'border-red-500': form.errors.password }"
-                required
-              />
-              <div v-if="form.errors.password" class="text-red-600 text-sm mt-1">
-                {{ form.errors.password }}
+              <div class="relative">
+                <Input
+                  id="password"
+                  v-model="form.password"
+                  :type="showPassword ? 'text' : 'password'"
+                  class="mt-1 pr-10"
+                  :class="{ 'border-red-500': validationErrors.password || form.errors.password }"
+                  required
+                  autocomplete="new-password"
+                />
+                <button
+                  type="button"
+                  @click="showPassword = !showPassword"
+                  class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+                >
+                  <Eye v-if="!showPassword" class="w-4 h-4" />
+                  <EyeOff v-else class="w-4 h-4" />
+                </button>
+              </div>
+
+              <!-- Password Strength Indicator -->
+              <div v-if="form.password" class="mt-2">
+                <div class="flex items-center space-x-2">
+                  <div class="flex-1 bg-gray-200 rounded-full h-2">
+                    <div
+                      :class="passwordStrengthColor"
+                      class="h-2 rounded-full transition-all duration-300"
+                      :style="{ width: `${(passwordStrength.score / 5) * 100}%` }"
+                    ></div>
+                  </div>
+                  <span class="text-sm font-medium">{{ passwordStrengthText }}</span>
+                </div>
+                <div v-if="passwordStrength.feedback.length > 0" class="text-xs text-gray-600 mt-1">
+                  Missing: {{ passwordStrength.feedback.join(', ') }}
+                </div>
+              </div>
+
+              <div v-if="validationErrors.password || form.errors.password" class="text-red-600 text-sm mt-1">
+                {{ Array.isArray(validationErrors.password) ? validationErrors.password[0] : validationErrors.password || form.errors.password }}
               </div>
             </div>
 
             <div>
               <Label htmlFor="password_confirmation">Confirm Password *</Label>
-              <Input
-                id="password_confirmation"
-                v-model="form.password_confirmation"
-                type="password"
-                class="mt-1"
-                required
-              />
+              <div class="relative">
+                <Input
+                  id="password_confirmation"
+                  v-model="form.password_confirmation"
+                  :type="showPasswordConfirmation ? 'text' : 'password'"
+                  class="mt-1 pr-10"
+                  :class="{ 'border-red-500': form.password && form.password_confirmation && form.password !== form.password_confirmation }"
+                  required
+                  autocomplete="new-password"
+                />
+                <button
+                  type="button"
+                  @click="showPasswordConfirmation = !showPasswordConfirmation"
+                  class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
+                >
+                  <Eye v-if="!showPasswordConfirmation" class="w-4 h-4" />
+                  <EyeOff v-else class="w-4 h-4" />
+                </button>
+              </div>
+              <div v-if="form.password && form.password_confirmation && form.password !== form.password_confirmation" class="text-red-600 text-sm mt-1">
+                Passwords do not match
+              </div>
             </div>
 
-            <Button type="submit" class="w-full">
+            <Button
+              type="submit"
+              class="w-full"
+              :disabled="isValidatingStep || !isCurrentStepValid"
+            >
+              <Loader2 v-if="isValidatingStep" class="mr-2 h-4 w-4 animate-spin" />
               Continue
             </Button>
           </form>
@@ -205,14 +499,14 @@ onUnmounted(() => {
       </Card>
 
       <!-- Step 2: Company Information -->
-      <Card v-if="step === 2">
-        <CardHeader>
+      <Card v-if="step === 2" class="shadow-none border-none">
+        <CardHeader class="p-0">
           <CardTitle>Company Information</CardTitle>
           <CardDescription>
             Tell us about your company
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent class="p-0 border-none">
           <form @submit.prevent="nextStep" class="space-y-4">
             <div>
               <Label htmlFor="company_name">Company Name *</Label>
@@ -221,11 +515,12 @@ onUnmounted(() => {
                 v-model="form.company_name"
                 type="text"
                 class="mt-1"
-                :class="{ 'border-red-500': form.errors.company_name }"
+                :class="{ 'border-red-500': validationErrors.company_name || form.errors.company_name }"
                 required
+                autocomplete="organization"
               />
-              <div v-if="form.errors.company_name" class="text-red-600 text-sm mt-1">
-                {{ form.errors.company_name }}
+              <div v-if="validationErrors.company_name || form.errors.company_name" class="text-red-600 text-sm mt-1">
+                {{ Array.isArray(validationErrors.company_name) ? validationErrors.company_name[0] : validationErrors.company_name || form.errors.company_name }}
               </div>
             </div>
 
@@ -246,6 +541,9 @@ onUnmounted(() => {
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
+              <div v-if="validationErrors.industry || form.errors.industry" class="text-red-600 text-sm mt-1">
+                {{ Array.isArray(validationErrors.industry) ? validationErrors.industry[0] : validationErrors.industry || form.errors.industry }}
+              </div>
             </div>
 
             <div>
@@ -264,6 +562,9 @@ onUnmounted(() => {
                   <SelectItem value="200+">200+ employees</SelectItem>
                 </SelectContent>
               </Select>
+              <div v-if="validationErrors.company_size || form.errors.company_size" class="text-red-600 text-sm mt-1">
+                {{ Array.isArray(validationErrors.company_size) ? validationErrors.company_size[0] : validationErrors.company_size || form.errors.company_size }}
+              </div>
             </div>
 
             <div>
@@ -273,14 +574,24 @@ onUnmounted(() => {
                 v-model="form.address"
                 class="mt-1"
                 rows="3"
+                :class="{ 'border-red-500': validationErrors.address || form.errors.address }"
+                placeholder="Enter your company address"
               />
+              <div v-if="validationErrors.address || form.errors.address" class="text-red-600 text-sm mt-1">
+                {{ Array.isArray(validationErrors.address) ? validationErrors.address[0] : validationErrors.address || form.errors.address }}
+              </div>
             </div>
 
             <div class="flex space-x-2">
-              <Button type="button" variant="outline" @click="step = 1" class="flex-1">
+              <Button type="button" variant="outline" @click="previousStep" class="flex-1">
                 Back
               </Button>
-              <Button type="submit" class="flex-1">
+              <Button
+                type="submit"
+                class="flex-1"
+                :disabled="isValidatingStep || !isCurrentStepValid"
+              >
+                <Loader2 v-if="isValidatingStep" class="mr-2 h-4 w-4 animate-spin" />
                 Continue
               </Button>
             </div>
@@ -289,14 +600,14 @@ onUnmounted(() => {
       </Card>
 
       <!-- Step 3: Subscription Plan -->
-      <Card v-if="step === 3">
-        <CardHeader>
+      <Card v-if="step === 3" class="shadow-none border-none">
+        <CardHeader class="p-0">
           <CardTitle>Choose Your Plan</CardTitle>
           <CardDescription>
             Select the plan that best fits your needs
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent class="p-0 border-none">
           <div class="space-y-4 mb-6">
             <div
               v-for="plan in plans"
@@ -329,8 +640,12 @@ onUnmounted(() => {
             </div>
           </div>
 
+          <div v-if="validationErrors.subscription_plan || form.errors.subscription_plan" class="text-red-600 text-sm mb-4">
+            {{ Array.isArray(validationErrors.subscription_plan) ? validationErrors.subscription_plan[0] : validationErrors.subscription_plan || form.errors.subscription_plan }}
+          </div>
+
           <div class="flex space-x-2">
-            <Button type="button" variant="outline" @click="step = 2" class="flex-1">
+            <Button type="button" variant="outline" @click="previousStep" class="flex-1">
               Back
             </Button>
             <Button

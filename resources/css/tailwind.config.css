@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../../node_modules/@inertiaui/modal-vue/src/**/*.{js,vue}";
 
 @theme {
   --font-family-sans: Instrument Sans, ui-sans-serif, system-ui, sans-serif;

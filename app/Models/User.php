@@ -65,21 +65,21 @@ class User extends Authenticatable implements HasMedia
       ->wherePivot('is_owner', true)
       ->exists();
   }
-  
+
   public function belongsToCompany(Company $company): bool
   {
     return $this->companies()->where('companies.id', $company->id)->exists();
   }
-  
+
   public function getRoleInCompany(Company $company): ?string
   {
     $companyUser = $this->companies()
       ->where('companies.id', $company->id)
       ->first();
-      
+
     return $companyUser ? $companyUser->pivot->role : null;
   }
-  
+
   /**
    * Check if user has a specific permission within a company context
    */
@@ -89,19 +89,19 @@ class User extends Authenticatable implements HasMedia
     if (!$this->belongsToCompany($company)) {
       return false;
     }
-    
+
     $role = $this->getRoleInCompany($company);
-    
+
     // Super admin can do everything
     if ($this->hasRole('super_admin')) {
       return true;
     }
-    
+
     // Company owners can do everything within their company
     if ($role === 'company_owner' || $this->isOwnerOf($company)) {
       return true;
     }
-    
+
     // Check if the user has the specific permission through their role
     return $this->hasPermissionTo($permission);
   }
@@ -127,7 +127,7 @@ class User extends Authenticatable implements HasMedia
     $hash = md5(strtolower(trim($this->email)));
     return "https://www.gravatar.com/avatar/{$hash}?d=mp&s=150";
   }
-  
+
   /**
    * Get the URL of the user's profile photo.
    * This is an alias for the avatar attribute to maintain compatibility

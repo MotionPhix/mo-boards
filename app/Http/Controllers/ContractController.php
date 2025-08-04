@@ -2,22 +2,35 @@
 
 namespace App\Http\Controllers;
 
-namespace App\Http\Controllers;
-
+use App\Http\Resources\ContractResource;
 use App\Models\Billboard;
 use App\Models\Contract;
 use App\Models\ContractTemplate;
+use App\Services\PlaceholderService;
+use App\Services\ContractContentService;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ContractController extends Controller
 {
+  use AuthorizesRequests;
+
+  protected $contentService;
+
+  public function __construct(ContractContentService $contentService)
+  {
+    $this->contentService = $contentService;
+  }
+
   public function index(Request $request): Response
   {
     $company = $request->user()->currentCompany;
 
-    $contracts = Contract::with(['billboards', 'template', 'createdBy'])
+    $contracts = Contract::with(['billboards', 'template', 'createdBy', 'company'])
       ->where('company_id', $company->id)
       ->when($request->search, function ($query, $search) {
         $query->where(function ($q) use ($search) {
@@ -33,8 +46,8 @@ class ContractController extends Controller
       ->paginate(15)
       ->withQueryString();
 
-    return Inertia::render('Contracts/Index', [
-      'contracts' => $contracts,
+    return Inertia::render('contracts/Index', [
+      'contracts' => ContractResource::collection($contracts),
       'filters' => $request->only(['search', 'status']),
       'stats' => [
         'total' => Contract::where('company_id', $company->id)->count(),
@@ -47,9 +60,9 @@ class ContractController extends Controller
 
   public function create(): Response
   {
-    $company = auth()->user()->currentCompany;
+    $company = Auth::user()?->currentCompany;
 
-    return Inertia::render('Contracts/Create', [
+    return Inertia::render('contracts/Create', [
       'templates' => ContractTemplate::where('company_id', $company->id)
         ->active()
         ->get(),
@@ -60,7 +73,7 @@ class ContractController extends Controller
 
   public function store(Request $request)
   {
-    $company = $request->user()->currentCompany;
+    $company = Auth::user()?->currentCompany;
 
     $validated = $request->validate([
       'template_id' => 'nullable|exists:contract_templates,id',
@@ -94,6 +107,14 @@ class ContractController extends Controller
       'monthly_amount' => $totalRate,
     ]);
 
+    // If created from template, apply template content to contract
+    if (isset($validated['template_id'])) {
+      $template = ContractTemplate::find($validated['template_id']);
+      if ($template) {
+        $this->contentService->applyTemplateToContract($contract, $template);
+      }
+    }
+
     // Attach billboards with rates
     foreach ($validated['billboards'] as $billboard) {
       $contract->billboards()->attach($billboard['id'], [
@@ -115,10 +136,10 @@ class ContractController extends Controller
   {
     $this->authorize('view', $contract);
 
-    $contract->load(['billboards', 'template', 'createdBy', 'payments']);
+    $contract->load(['billboards', 'template', 'createdBy', 'company', 'payments']);
 
-    return Inertia::render('Contracts/Show', [
-      'contract' => $contract
+    return Inertia::render('contracts/Show', [
+      'contract' => new ContractResource($contract)
     ]);
   }
 
@@ -126,12 +147,12 @@ class ContractController extends Controller
   {
     $this->authorize('update', $contract);
 
-    $company = auth()->user()->currentCompany;
+    $company = Auth::user()?->currentCompany;
 
-    $contract->load('billboards');
+    $contract->load(['billboards', 'company']);
 
-    return Inertia::render('Contracts/Edit', [
-      'contract' => $contract,
+    return Inertia::render('contracts/Edit', [
+      'contract' => new ContractResource($contract),
       'templates' => ContractTemplate::where('company_id', $company->id)
         ->active()
         ->get(),
@@ -198,6 +219,131 @@ class ContractController extends Controller
       ->with('success', 'Contract deleted successfully.');
   }
 
+  public function document(Contract $contract): Response
+  {
+    $this->authorize('view', $contract);
+
+    $contract->load(['billboards', 'template', 'createdBy', 'company']);
+
+    $company = Auth::user()->currentCompany;
+
+    return Inertia::render('contracts/Document', [
+      'contract' => new ContractResource($contract),
+      'templates' => ContractTemplate::where('company_id', $company->id)
+        ->active()
+        ->get(['id', 'name', 'description', 'content', 'is_active', 'created_at', 'updated_at']),
+      'contractContent' => $contract->document_content ?? null,
+    ]);
+  }
+
+  public function updateDocument(Request $request, Contract $contract)
+  {
+    $this->authorize('update', $contract);
+
+    $request->validate([
+      'content' => 'required|string',
+    ]);
+
+    // Process placeholders in the content
+    $placeholderService = new PlaceholderService();
+    $processedContent = $placeholderService->replacePlaceholders($request->content, $contract);
+
+    $contract->update([
+      'document_content' => $processedContent,
+    ]);
+
+    return redirect()->back()->with('success', 'Document content updated successfully');
+  }
+
+  public function previewPlaceholders(Request $request, Contract $contract)
+  {
+    $this->authorize('view', $contract);
+
+    $request->validate([
+      'content' => 'required|string',
+    ]);
+
+    // Process placeholders for preview
+    $placeholderService = new PlaceholderService();
+    $previewContent = $placeholderService->replacePlaceholders($request->content, $contract);
+    $placeholderValues = $placeholderService->getPlaceholderValues($contract);
+
+    return response()->json([
+      'preview_content' => $previewContent,
+      'placeholder_values' => $placeholderValues,
+    ]);
+  }
+
+  public function templateSelector(Request $request, Contract $contract): Response
+  {
+    $this->authorize('view', $contract);
+
+    $company = $request->user()->currentCompany;
+
+    return Inertia::render('contracts/partials/TemplateSelectionModal', [
+      'templates' => ContractTemplate::where('company_id', $company->id)
+        ->active()
+        ->get(['id', 'name', 'description', 'content', 'is_active', 'created_at', 'updated_at']),
+      'selectedTemplateId' => $contract->template_id,
+      'contractId' => $contract->id,
+    ]);
+  }
+
+  public function applyTemplate(Request $request, Contract $contract)
+  {
+    $this->authorize('update', $contract);
+
+    $request->validate([
+      'template_id' => 'required|exists:contract_templates,id',
+      'content' => 'required|string',
+    ]);
+
+    // Process placeholders in the template content
+    $placeholderService = new PlaceholderService();
+    $processedContent = $placeholderService->replacePlaceholders($request->content, $contract);
+
+    $contract->update([
+      'template_id' => $request->template_id,
+      'document_content' => $processedContent,
+    ]);
+
+    // Return an Inertia response that will allow the modal to close properly
+    return redirect()->back()->with('success', 'Template applied successfully');
+  }
+
+  public function exportPdf(Contract $contract)
+  {
+    $this->authorize('view', $contract);
+
+    try {
+      $contract->load(['billboards', 'template', 'createdBy', 'company']);
+
+      $pdf = Pdf::loadView('pdfs.contract', compact('contract'))
+        ->setPaper('a4', 'portrait')
+        ->setOptions([
+          'defaultFont' => 'DejaVu Sans',
+          'isRemoteEnabled' => true,
+          'isHtml5ParserEnabled' => true,
+          'dpi' => 150,
+          'defaultPaperSize' => 'a4',
+          'margin' => [
+            'top' => 20,
+            'right' => 20,
+            'bottom' => 20,
+            'left' => 20
+          ]
+        ]);
+
+      $filename = 'contract-' . $contract->contract_number . '.pdf';
+
+      return $pdf->download($filename);
+    } catch (\Exception $e) {
+      return response()->json([
+        'error' => 'Failed to generate PDF: ' . $e->getMessage()
+      ], 500);
+    }
+  }
+
   private function generatePaymentSchedule(Contract $contract): void
   {
     $interval = match ($contract->payment_terms) {
@@ -219,6 +365,160 @@ class ContractController extends Controller
       ]);
 
       $currentDate->addMonths($interval);
+    }
+  }
+
+  private function getDefaultContent(Contract $contract): string
+  {
+    return '
+      <h1>BILLBOARD ADVERTISING AGREEMENT</h1>
+
+      <p>This Billboard Advertising Agreement ("Agreement") is entered into on <strong>' . now()->format('F j, Y') . '</strong> between:</p>
+
+      <h2>PARTIES</h2>
+      <p><strong>Advertiser (Client):</strong><br>
+      ' . $contract->client_name . '<br>
+      ' . ($contract->client_company ?? '') . '<br>
+      ' . ($contract->client_address ?? '') . '<br>
+      Email: ' . ($contract->client_email ?? '') . '<br>
+      Phone: ' . ($contract->client_phone ?? '') . '</p>
+
+      <p><strong>Billboard Company:</strong><br>
+      ' . $contract->company->name . '<br>
+      ' . ($contract->company->address ?? '') . '</p>
+
+      <h2>BILLBOARD ADVERTISING SERVICES</h2>
+      <p>The Company agrees to provide billboard advertising services at the following location(s):</p>
+
+      <p><strong>Billboard Locations:</strong></p>
+      <ul>
+      ' . $contract->billboards->map(fn($billboard) => '<li>' . $billboard->name . ' - ' . $billboard->location . '</li>')->join('') . '
+      </ul>
+
+      <h2>TERMS AND CONDITIONS</h2>
+
+      <h3>1. Contract Period</h3>
+      <p>This agreement shall commence on <strong>' . $contract->start_date->format('F j, Y') . '</strong> and continue until <strong>' . $contract->end_date->format('F j, Y') . '</strong>, unless terminated earlier in accordance with the terms herein.</p>
+
+      <h3>2. Advertising Fee</h3>
+      <p><strong>Monthly Fee:</strong> $' . number_format($contract->monthly_amount, 2) . '<br>
+      <strong>Total Contract Value:</strong> $' . number_format($contract->total_amount, 2) . '<br>
+      <strong>Payment Terms:</strong> ' . ucfirst(str_replace('_', ' ', $contract->payment_terms)) . '</p>
+
+      <h3>3. Terms and Conditions</h3>
+      <p>This agreement is subject to the standard terms and conditions as outlined in our contract template.</p>
+
+      <div style="margin-top: 4rem;">
+        <div style="display: flex; justify-content: space-between;">
+          <div style="width: 45%;">
+            <p>_________________________<br>Client Signature</p>
+            <p>Date: ___________________</p>
+          </div>
+          <div style="width: 45%;">
+            <p>_________________________<br>Company Representative</p>
+            <p>Date: ___________________</p>
+          </div>
+        </div>
+      </div>
+    ';
+  }
+
+  /**
+   * Show the document with processed placeholders (read-only view)
+   */
+  public function documentShow(Contract $contract): Response
+  {
+    $this->authorize('view', $contract);
+
+    $contract->load(['billboards', 'template', 'createdBy', 'company']);
+
+    // Process the content (replace placeholders with actual values)
+    $contentService = new ContractContentService();
+    $processedContent = $contentService->processContractContent($contract);
+
+    return Inertia::render('contracts/DocumentShow', [
+      'contract' => $contract,
+      'processedContent' => $processedContent,
+    ]);
+  }
+
+  /**
+   * Show the editable document design form
+   */
+  public function documentEdit(Contract $contract): Response
+  {
+    $this->authorize('update', $contract);
+
+    $contract->load(['billboards', 'template', 'createdBy', 'company']);
+
+    return Inertia::render('contracts/DocumentEdit', [
+      'contract' => new ContractResource($contract),
+    ]);
+  }
+
+  /**
+   * Update the contract design
+   */
+  public function documentUpdate(Request $request, Contract $contract)
+  {
+    $this->authorize('update', $contract);
+
+    $validated = $request->validate([
+      'design' => 'required|string',
+      'custom_field_values' => 'nullable|array',
+    ]);
+
+    $contract->update([
+      'design' => $validated['design'],
+      'custom_field_values' => $validated['custom_field_values'] ?? [],
+    ]);
+
+    // Process the content after updating design
+    $contentService = new ContractContentService();
+    $contentService->processContractContent($contract);
+
+    return redirect()->route('contracts.document.show', $contract->uuid)
+      ->with('success', 'Contract document updated successfully.');
+  }
+
+  /**
+   * Export document as PDF
+   */
+  public function documentPdf(Contract $contract)
+  {
+    $this->authorize('view', $contract);
+
+    try {
+      // Load contract relationships
+      $contract->load(['billboards', 'template', 'createdBy', 'company']);
+
+      // Process the content to ensure it's up to date
+      $contentService = new ContractContentService();
+      $processedContent = $contentService->processContractContent($contract);
+
+      $pdf = Pdf::loadView('pdfs.contract-document', compact('contract', 'processedContent'))
+        ->setPaper('a4', 'portrait')
+        ->setOptions([
+          'defaultFont' => 'DejaVu Sans',
+          'isRemoteEnabled' => true,
+          'isHtml5ParserEnabled' => true,
+          'dpi' => 150,
+          'defaultPaperSize' => 'a4',
+          'margin' => [
+            'top' => 20,
+            'right' => 20,
+            'bottom' => 20,
+            'left' => 20
+          ]
+        ]);
+
+      $filename = 'contract-document-' . $contract->contract_number . '.pdf';
+
+      return $pdf->download($filename);
+    } catch (\Exception $e) {
+      return response()->json([
+        'error' => 'Failed to generate PDF: ' . $e->getMessage()
+      ], 500);
     }
   }
 }

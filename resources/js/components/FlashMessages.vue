@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed top-4 right-4 space-y-2 z-50">
+  <div class="fixed top-4 left-4 space-y-2 z-50">
     <Alert v-if="flash.success" variant="default" class="w-96">
       <CheckCircle class="h-4 w-4" />
       <AlertTitle>Success</AlertTitle>

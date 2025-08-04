@@ -138,13 +138,17 @@ html body {
 }
 
 input, button[role=combobox], button[aria-haspopup=dialog], button[aria-haspopup=menu] {
-  @apply !h-12;
+  @apply h-10;
+}
+
+div[data-slot=tabs-list] {
+  @apply h-12;
 }
 
 .is-large {
-  @apply !h-12;
+  @apply !h-11;
 }
 
 .is-x-large {
-  @apply !h-14;
+  @apply !h-12;
 }

@@ -230,16 +230,16 @@ const updateStatus = (value: any) => {
 }
 
 const editBillboard = (billboard: Billboard) => {
-  router.visit(route('billboards.edit', billboard.id))
+  router.visit(route('billboards.edit', billboard.uuid))
 }
 
 const viewBillboard = (billboard: Billboard) => {
-  router.visit(route('billboards.show', billboard.id))
+  router.visit(route('billboards.show', billboard.uuid))
 }
 
 const deleteBillboard = (billboard: Billboard) => {
   if (confirm('Are you sure you want to delete this billboard?')) {
-    router.delete(route('billboards.destroy', billboard.id))
+    router.delete(route('billboards.destroy', billboard.uuid))
   }
 }
 

@@ -8,10 +8,10 @@ import {
   Building2,
   Flag as Billboard,
   FileText,
-  ScrollText,
   Users,
   Settings,
   Building,
+  Library as LibraryBig,
 } from 'lucide-vue-next'
 import NavMain from '@/components/NavMain.vue'
 import NavUser from '@/components/NavUser.vue'
@@ -47,7 +47,7 @@ const user = computed(() => page.props.auth?.user)
 const companies = computed(() => user.value?.companies || [])
 const currentCompany = computed(() => user.value?.current_company)
 
-// Navigation data based on your actual routes
+// Navigation data - simplified structure without dropdowns
 const navMain = computed(() => [
   {
     title: 'Dashboard',
@@ -60,80 +60,36 @@ const navMain = computed(() => [
     url: route('billboards.index'),
     icon: Billboard,
     isActive: isActiveRoute('/billboards'),
-    items: [
-      {
-        title: 'All Billboards',
-        url: route('billboards.index'),
-      },
-      {
-        title: 'Add Billboard',
-        url: route('billboards.create'),
-      },
-    ],
   },
   {
     title: 'Contracts',
     url: route('contracts.index'),
     icon: FileText,
     isActive: isActiveRoute('/contracts'),
-    items: [
-      {
-        title: 'All Contracts',
-        url: route('contracts.index'),
-      },
-      {
-        title: 'Create Contract',
-        url: route('contracts.create'),
-      },
-    ],
   },
   {
-    title: 'Contract Templates',
+    title: 'Templates',
     url: route('contract-templates.index'),
-    icon: ScrollText,
-    isActive: isActiveRoute('/contract-templates'),
-    items: [
-      {
-        title: 'All Templates',
-        url: route('contract-templates.index'),
-      },
-      {
-        title: 'Create Template',
-        url: route('contract-templates.create'),
-      },
-    ],
+    icon: LibraryBig,
+    isActive: isActiveRoute('/contract-templates') || isActiveRoute('/template-marketplace'),
   },
   {
     title: 'Team',
     url: route('team.index'),
     icon: Users,
     isActive: isActiveRoute('/team'),
-    items: [
-      {
-        title: 'Team Members',
-        url: route('team.index'),
-      },
-      {
-        title: 'Invite Member',
-        url: route('team.create'),
-      },
-    ],
   },
   {
     title: 'Companies',
     url: route('companies.index'),
     icon: Building,
     isActive: isActiveRoute('/companies'),
-    items: [
-      {
-        title: 'All Companies',
-        url: route('companies.index'),
-      },
-      {
-        title: 'Create Company',
-        url: route('companies.create'),
-      },
-    ],
+  },
+  {
+    title: 'Settings',
+    url: route('companies.settings'),
+    icon: Settings,
+    isActive: isActiveRoute('/companies/settings'),
   },
 ])
 
@@ -151,7 +107,7 @@ const teams = computed(() =>
 </script>
 
 <template>
-  <Sidebar v-bind="props" variant="inset">
+  <Sidebar v-bind="props" variant="floating" collapsible="offcanvas">
     <SidebarHeader>
       <TeamSwitcher :teams="teams" />
     </SidebarHeader>

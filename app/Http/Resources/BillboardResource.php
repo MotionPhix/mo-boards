@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Helpers\CurrencyHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -16,8 +17,13 @@ class BillboardResource extends JsonResource
    */
   public function toArray(Request $request): array
   {
+    $company = $this->company;
+    $currency = $company->currency ?? 'USD';
+    $currencySymbol = CurrencyHelper::getSymbol($currency);
+
     return [
       'id' => $this->id,
+      'uuid' => $this->uuid,
       'code' => $this->code,
       'name' => $this->name,
       'location' => $this->location,
@@ -28,13 +34,16 @@ class BillboardResource extends JsonResource
       'dimensions' => [
         'width' => $this->width,
         'height' => $this->height,
-        'size' => $this->size, // This now comes from the accessor method
+        'size' => $this->size,
         'area' => $this->width && $this->height ? round($this->width * $this->height, 2) : null,
       ],
       'pricing' => [
         'monthly_rate' => $this->monthly_rate,
-        'formatted_rate' => $this->monthly_rate ? '$' . number_format((float) $this->monthly_rate, 2) : null,
+        'currency' => $currency,
+        'currency_symbol' => $currencySymbol,
+        'formatted_rate' => $this->monthly_rate ? CurrencyHelper::format((float) $this->monthly_rate, $currency) : null,
         'annual_rate' => $this->monthly_rate ? $this->monthly_rate * 12 : null,
+        'formatted_annual_rate' => $this->monthly_rate ? CurrencyHelper::format((float) $this->monthly_rate * 12, $currency) : null,
       ],
       'status' => [
         'current' => $this->status,
@@ -55,7 +64,7 @@ class BillboardResource extends JsonResource
               'client_name' => $activeContract->client_name,
               'start_date' => $activeContract->start_date->format('M d, Y'),
               'end_date' => $activeContract->end_date->format('M d, Y'),
-              'monthly_amount' => '$' . number_format($activeContract->monthly_amount, 2),
+              'monthly_amount' => '$' . number_format((float) $activeContract->monthly_amount, 2),
             ] : null;
           }
         ),
@@ -87,12 +96,15 @@ class BillboardResource extends JsonResource
           ];
         }
       ),
-      'timestamps' => [
-        'created_at' => $this->created_at->format('M d, Y'),
-        'updated_at' => $this->updated_at->format('M d, Y'),
-        'created_at_human' => $this->created_at->diffForHumans(),
-        'updated_at_human' => $this->updated_at->diffForHumans(),
+      'company' => [
+        'id' => $company->id,
+        'name' => $company->name,
+        'currency' => $currency,
+        'timezone' => $company->timezone ?? 'UTC',
+        'date_format' => $company->date_format ?? 'Y-m-d',
       ],
+      'created_at' => $this->created_at?->setTimezone($company->timezone ?? 'UTC')->format($company->date_format ?? 'Y-m-d'),
+      'updated_at' => $this->updated_at?->setTimezone($company->timezone ?? 'UTC')->format($company->date_format ?? 'Y-m-d'),
       'actions' => [
         'can_view' => true,
         'can_edit' => $this->status !== 'maintenance',

@@ -1,12 +1,34 @@
+import '../css/style.css';
 import '../css/app.css';
 
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { DefineComponent } from 'vue';
-import { createApp, h } from 'vue';
+import { createApp } from 'vue';
 import { ZiggyVue } from 'ziggy-js';
 import { initializeTheme } from './composables/useAppearance';
 import VueApexCharts from 'vue3-apexcharts';
+import { Modal, ModalLink, renderApp, putConfig } from '@inertiaui/modal-vue';
+
+// Configure default modal settings
+putConfig({
+    modal: {
+        closeButton: true,
+        closeExplicitly: true,
+        maxWidth: '2xl',
+        paddingClasses: 'p-6',
+        panelClasses: 'bg-white rounded-lg shadow-xl',
+        position: 'center',
+    },
+    slideover: {
+        closeButton: true,
+        closeExplicitly: false,
+        maxWidth: 'md',
+        paddingClasses: 'p-6',
+        panelClasses: 'bg-white min-h-screen',
+        position: 'right',
+    },
+});
 
 // Extend ImportMeta interface for Vite...
 declare module 'vite/client' {
@@ -27,10 +49,12 @@ createInertiaApp({
     title: (title) => `${title} - ${appName}`,
     resolve: (name) => resolvePageComponent(`./pages/${name}.vue`, import.meta.glob<DefineComponent>('./pages/**/*.vue')),
     setup({ el, App, props, plugin }) {
-        createApp({ render: () => h(App, props) })
+        createApp({ render: renderApp(App, props) })
             .use(plugin)
             .use(ZiggyVue)
             .use(VueApexCharts)
+            .component('ModalUi', Modal)
+            .component('ModalLink', ModalLink)
             .mount(el);
     },
     progress: {

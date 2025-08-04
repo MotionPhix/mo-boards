@@ -7,8 +7,17 @@ use App\Notifications\TeamInvitationNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Carbon\Carbon;
+use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    // Create roles for tests
+    Role::create(['name' => 'company_owner']);
+    Role::create(['name' => 'manager']);
+    Role::create(['name' => 'editor']);
+    Role::create(['name' => 'viewer']);
+});
 
 test('complete team invitation flow from invitation to login', function () {
     // Step 1: Setup company and owner
@@ -47,6 +56,7 @@ test('complete team invitation flow from invitation to login', function () {
     );
 
     // Step 3: New user visits invitation link (not logged in)
+    auth()->logout(); // Clear authentication
     $this->get(route('team.accept-invitation', ['token' => $invitation->invitation_token]))
         ->assertRedirect(route('register.invited'))
         ->assertSessionHas('invitation_token', $invitation->invitation_token);
@@ -100,6 +110,7 @@ test('existing user invitation acceptance flow', function () {
     $existingUser = User::factory()->create([
         'email' => 'existing@example.com',
         'name' => 'Existing User',
+        'current_company_id' => null,
     ]);
 
     // Send invitation
@@ -151,6 +162,7 @@ test('multiple pending invitations are handled correctly', function () {
 
     // Switch to company 2 and send another invitation
     $owner->update(['current_company_id' => $company2->id]);
+    $owner->refresh(); // Refresh the model to reload relationships
     $this->post(route('team.invite'), [
         'name' => 'Multi User',
         'email' => 'multi@example.com',

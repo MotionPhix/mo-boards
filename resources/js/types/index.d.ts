@@ -48,6 +48,7 @@ export interface User {
 
 export interface Company {
   id: number
+  uuid: string
   name: string
   slug: string
   industry?: string
@@ -67,6 +68,7 @@ export interface Company {
 
 export interface Billboard {
   id: number
+  uuid: string
   code: string
   name: string
   location: string
@@ -133,6 +135,110 @@ export interface MediaFile {
   updated_at: string
   original_url: string
   preview_url: string
+}
+
+export interface Contract {
+  id: number
+  uuid: string
+  contract_number: string
+  status: {
+    current: string
+    label: string
+    color: string
+  }
+  client: {
+    name: string
+    email?: string
+    phone?: string
+    company?: string
+    address?: string
+  }
+  dates: {
+    start_date: string
+    end_date: string
+    signed_at?: string
+    duration_months: number
+  }
+  financial: {
+    currency: string
+    currency_symbol: string
+    exchange_rate: string
+    total_amount: string
+    monthly_amount: string
+    formatted_total: string
+    formatted_monthly: string
+    company_currency: string
+    currency_converted: boolean
+  }
+  terms: {
+    payment_terms: string
+    payment_terms_days: number
+    late_fee_percentage: string
+    tax_rate: string
+  }
+  billboards: Array<{
+    id: number
+    uuid: string
+    code: string
+    name: string
+    location: string
+    rate: number
+    formatted_rate: string
+    notes?: string
+    dimensions?: string
+  }>
+  template?: {
+    id: number
+    uuid: string
+    name: string
+  }
+  created_by: {
+    id: number
+    name: string
+    email: string
+  }
+  company: {
+    id: number
+    name: string
+    currency: string
+    timezone: string
+    date_format: string
+  }
+  notes?: string
+  created_at: string
+  updated_at: string
+  actions: {
+    can_view: boolean
+    can_edit: boolean
+    can_delete: boolean
+    can_approve: boolean
+    can_sign: boolean
+    can_cancel: boolean
+  }
+}
+
+export interface ContractTemplate {
+  id: number
+  uuid: string
+  name: string
+  description?: string
+  content: string
+  price?: string
+  formatted_price?: string
+  is_active: boolean
+  is_premium: boolean
+  category?: string
+  tags?: string[]
+  company?: Company
+  created_at: string
+  updated_at: string
+  actions: {
+    can_view: boolean
+    can_edit: boolean
+    can_delete: boolean
+    can_duplicate: boolean
+    can_purchase: boolean
+  }
 }
 
 export interface TeamMember {
