@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Contract;
 use App\Models\Company;
+use App\Enums\ContractStatus;
+use App\Helpers\CurrencyHelper;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
@@ -20,6 +22,15 @@ class PlaceholderService
             $content = str_replace($placeholder, $value, $content);
         }
 
+        // Render billboard layouts if placeholders present
+        if (str_contains($content, '{{billboards_table}}')) {
+            $content = str_replace('{{billboards_table}}', $this->renderBillboardsTable($contract), $content);
+        }
+
+        if (str_contains($content, '{{billboards_list}}')) {
+            $content = str_replace('{{billboards_list}}', $this->renderBillboardsList($contract), $content);
+        }
+
         return $content;
     }
 
@@ -30,7 +41,7 @@ class PlaceholderService
     {
         $company = $contract->company;
 
-        return [
+    $values = [
             // Company Information
             '{{company_name}}' => $company->name ?? '',
             '{{company_logo}}' => $this->getCompanyLogo($company),
@@ -76,7 +87,13 @@ class PlaceholderService
             '{{today_date}}' => Carbon::now()->format('F j, Y'),
             '{{current_year}}' => Carbon::now()->format('Y'),
             '{{current_month}}' => Carbon::now()->format('F'),
-        ];
+    ];
+
+    // Special layout placeholders (rendered HTML blocks)
+    $values['{{billboards_table}}'] = $this->renderBillboardsTable($contract);
+    $values['{{billboards_list}}'] = $this->renderBillboardsList($contract);
+
+    return $values;
     }
 
     /**
@@ -160,14 +177,11 @@ class PlaceholderService
      */
     private function formatStatus(string $status): string
     {
-        return match ($status) {
-            'draft' => 'Draft',
-            'pending' => 'Pending',
-            'active' => 'Active',
-            'completed' => 'Completed',
-            'cancelled' => 'Cancelled',
-            default => Str::title($status),
-        };
+        // Normalize and map via Enum for a single source of truth
+        if ($enum = ContractStatus::tryFrom(strtolower($status))) {
+            return $enum->label();
+        }
+        return Str::title($status);
     }
 
     /**
@@ -178,15 +192,7 @@ class PlaceholderService
         if ($amount === null) {
             return '';
         }
-
-        $currency = $currency ?? 'USD';
-
-        return match ($currency) {
-            'USD' => '$' . number_format($amount, 2),
-            'EUR' => '€' . number_format($amount, 2),
-            'GBP' => '£' . number_format($amount, 2),
-            default => $currency . ' ' . number_format($amount, 2),
-        };
+        return CurrencyHelper::format((float) $amount, $currency ?? 'USD');
     }
 
     /**
@@ -255,6 +261,8 @@ class PlaceholderService
             ],
             'Billboard Information' => [
                 '{{billboard_locations}}' => 'Billboard Locations',
+                '{{billboards_table}}' => 'Billboards Table (Code, Name, Location, Dimensions, Monthly Rate, Notes)',
+                '{{billboards_list}}' => 'Billboards List (Name, Location, Rate)',
             ],
             'Dates & System' => [
                 '{{today_date}}' => 'Today\'s Date',
@@ -262,5 +270,73 @@ class PlaceholderService
                 '{{current_month}}' => 'Current Month',
             ],
         ];
+    }
+
+    /**
+     * Render billboards as a styled HTML table similar to the provided design
+     */
+    private function renderBillboardsTable(Contract $contract): string
+    {
+        $billboards = $contract->billboards;
+        if ($billboards->isEmpty()) {
+            return '<div style="margin: 1rem 0; color: #666;">No billboards on this contract.</div>';
+        }
+
+        $currency = $contract->currency ?? ($contract->company->currency ?? 'USD');
+
+        $rows = $billboards->map(function ($b) use ($currency) {
+            $code = e($b->code ?? '—');
+            $name = e($b->name ?? '—');
+            $location = e($b->location ?? '—');
+            $dimensions = ($b->width && $b->height) ? e(number_format($b->width, 2)) . "' × " . e(number_format($b->height, 2)) . "'" : '—';
+            $rate = $b->pivot?->rate ?? $b->monthly_rate ?? 0;
+            $formattedRate = e(\App\Helpers\CurrencyHelper::format((float)$rate, $currency));
+            $notes = e($b->pivot?->notes ?? '');
+
+            return "<tr>
+                <td style='border:1px solid #ddd; padding:12px;'>$code</td>
+                <td style='border:1px solid #ddd; padding:12px;'>$name</td>
+                <td style='border:1px solid #ddd; padding:12px;'>$location</td>
+                <td style='border:1px solid #ddd; padding:12px; text-align:center;'>$dimensions</td>
+                <td style='border:1px solid #ddd; padding:12px; text-align:right;'>$formattedRate</td>
+                <td style='border:1px solid #ddd; padding:12px;'>$notes</td>
+            </tr>";
+        })->join('');
+
+        return "<table style='width:100%; border-collapse:collapse; margin: 12px 0; border:1px solid #000;'>
+            <thead>
+                <tr style='background-color:#f5f5f5;'>
+                    <th style='border:1px solid #000; padding:10px; text-align:left;'>Code</th>
+                    <th style='border:1px solid #000; padding:10px; text-align:left;'>Name</th>
+                    <th style='border:1px solid #000; padding:10px; text-align:left;'>Location</th>
+                    <th style='border:1px solid #000; padding:10px; text-align:center;'>Dimensions</th>
+                    <th style='border:1px solid #000; padding:10px; text-align:right;'>Monthly Rate</th>
+                    <th style='border:1px solid #000; padding:10px; text-align:left;'>Notes</th>
+                </tr>
+            </thead>
+            <tbody>$rows</tbody>
+        </table>";
+    }
+
+    /**
+     * Render billboards as a bullet list
+     */
+    private function renderBillboardsList(Contract $contract): string
+    {
+        $billboards = $contract->billboards;
+        if ($billboards->isEmpty()) {
+            return '<div style="margin: 1rem 0; color: #666;">No billboards on this contract.</div>';
+        }
+        $currency = $contract->currency ?? ($contract->company->currency ?? 'USD');
+
+        $items = $billboards->map(function ($b) use ($currency) {
+            $name = e($b->name ?? '—');
+            $location = e($b->location ?? '—');
+            $rate = $b->pivot?->rate ?? $b->monthly_rate ?? 0;
+            $formattedRate = e(\App\Helpers\CurrencyHelper::format((float)$rate, $currency));
+            return "<li><strong>$name</strong> — $location <span style='float:right;'>$formattedRate</span></li>";
+        })->join('');
+
+        return "<ul style='margin: 12px 0 12px 1.25rem; padding:0; list-style:disc;'>$items</ul>";
     }
 }

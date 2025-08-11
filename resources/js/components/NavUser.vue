@@ -10,6 +10,7 @@ import {
   Settings,
 } from 'lucide-vue-next'
 import { router } from '@inertiajs/vue3'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 
 import {
   Avatar,
@@ -122,6 +123,15 @@ const getInitials = (name: string) => {
               <Bell />
               Notifications
             </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuLabel class="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+              Theme
+            </DropdownMenuLabel>
+            <div class="px-2 py-1">
+              <ThemeToggle />
+            </div>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem @click="handleLogout" class="cursor-pointer">

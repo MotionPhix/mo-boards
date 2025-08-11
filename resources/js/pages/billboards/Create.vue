@@ -1,6 +1,6 @@
 <template>
-  <AppLayout 
-    title="Create Billboard" 
+  <AppLayout
+    title="Create Billboard"
     :breadcrumbs="breadcrumbs">
     <div class="max-w-4xl">
         <!-- Header -->
@@ -43,15 +43,19 @@
                   <Label htmlFor="status" className="text-foreground">Status *</Label>
                   <Select
                     :model-value="form.status"
-                    @update:model-value="(val) => form.status = val as 'active' | 'inactive' | 'maintenance'"
+                    @update:model-value="(val) => form.status = val as 'active' | 'available' | 'maintenance' | 'removed'"
                   >
-                    <SelectTrigger class="mt-1">
+                    <SelectTrigger class="mt-1 w-full">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                      <SelectItem value="maintenance">Maintenance</SelectItem>
+                      <SelectItem
+                        v-for="opt in props.statuses"
+                        :key="opt.value"
+                        :value="opt.value"
+                      >
+                        {{ opt.label }}
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                   <div v-if="form.errors.status" class="text-destructive text-sm mt-1">
@@ -79,9 +83,12 @@
               <!-- Location Map -->
               <div>
                 <Label className="text-foreground mb-1 block">Map Location</Label>
+                <p class="text-xs text-muted-foreground mb-2">Drop the pin or search to set precise coordinates. We’ll default to your current location if allowed.</p>
                 <LocationPicker
                   v-model:latitude="form.latitude"
                   v-model:longitude="form.longitude"
+                  v-model:address="form.location"
+                  map-height="420px"
                 />
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
                   <!-- Latitude -->
@@ -89,11 +96,12 @@
                     <Label htmlFor="latitude" className="text-foreground text-xs">Latitude</Label>
                     <Input
                       id="latitude"
-                      v-model.number="form.latitude"
+                      :model-value="form.latitude ?? ''"
                       type="number"
                       step="any"
                       class="mt-1"
                       :class="{ 'border-destructive': form.errors.latitude }"
+                      @update:model-value="(v: string | number) => { const n = Number(v); form.latitude = (v === '' || Number.isNaN(n)) ? null : n }"
                     />
                     <div v-if="form.errors.latitude" class="text-destructive text-sm mt-1">
                       {{ form.errors.latitude }}
@@ -105,11 +113,12 @@
                     <Label htmlFor="longitude" className="text-foreground text-xs">Longitude</Label>
                     <Input
                       id="longitude"
-                      v-model.number="form.longitude"
+                      :model-value="form.longitude ?? ''"
                       type="number"
                       step="any"
                       class="mt-1"
                       :class="{ 'border-destructive': form.errors.longitude }"
+                      @update:model-value="(v: string | number) => { const n = Number(v); form.longitude = (v === '' || Number.isNaN(n)) ? null : n }"
                     />
                     <div v-if="form.errors.longitude" class="text-destructive text-sm mt-1">
                       {{ form.errors.longitude }}
@@ -118,17 +127,32 @@
                 </div>
               </div>
 
+              <!-- Images Upload -->
+              <ImageUploader
+                label="Billboard Images"
+                accept="image/jpeg,image/png"
+                :max-files="MAX_FILES"
+                :max-size="MAX_SIZE"
+                v-model:files="newImageFiles"
+              />
+
+              <!-- Upload progress -->
+              <div v-if="uploadProgress > 0 && uploadProgress < 100" class="mt-3 w-full h-2 bg-muted rounded">
+                <div class="h-2 bg-primary rounded transition-all" :style="{ width: `${uploadProgress}%` }"></div>
+              </div>
+
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Width -->
                 <div>
                   <Label htmlFor="width" className="text-foreground">Width (ft)</Label>
                   <Input
                     id="width"
-                    v-model.number="form.width"
+                    :model-value="form.width ?? ''"
                     type="number"
                     step="0.01"
                     class="mt-1"
                     :class="{ 'border-destructive': form.errors.width }"
+                    @update:model-value="(v: string | number) => { const n = Number(v); form.width = (v === '' || Number.isNaN(n)) ? null : n }"
                   />
                   <div v-if="form.errors.width" class="text-destructive text-sm mt-1">
                     {{ form.errors.width }}
@@ -140,11 +164,12 @@
                   <Label htmlFor="height" className="text-foreground">Height (ft)</Label>
                   <Input
                     id="height"
-                    v-model.number="form.height"
+                    :model-value="form.height ?? ''"
                     type="number"
                     step="0.01"
                     class="mt-1"
                     :class="{ 'border-destructive': form.errors.height }"
+                    @update:model-value="(v: string | number) => { const n = Number(v); form.height = (v === '' || Number.isNaN(n)) ? null : n }"
                   />
                   <div v-if="form.errors.height" class="text-destructive text-sm mt-1">
                     {{ form.errors.height }}
@@ -157,11 +182,12 @@
                 <Label htmlFor="monthly_rate" className="text-foreground">Monthly Rate ($)</Label>
                 <Input
                   id="monthly_rate"
-                  v-model.number="form.monthly_rate"
+                  :model-value="form.monthly_rate ?? ''"
                   type="number"
                   step="0.01"
                   class="mt-1"
                   :class="{ 'border-destructive': form.errors.monthly_rate }"
+                  @update:model-value="(v: string | number) => { const n = Number(v); form.monthly_rate = (v === '' || Number.isNaN(n)) ? null : n }"
                 />
                 <div v-if="form.errors.monthly_rate" class="text-destructive text-sm mt-1">
                   {{ form.errors.monthly_rate }}
@@ -212,7 +238,9 @@
 
 <script setup lang="ts">
 import { useForm, router } from '@inertiajs/vue3'
+import { ref } from 'vue'
 import { Loader2 } from 'lucide-vue-next'
+import { route } from 'ziggy-js'
 import AppLayout from '@/layouts/AppLayout.vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -227,14 +255,19 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import LocationPicker from '@/components/map/LocationPicker.vue'
-import { useToast } from '@/composables/useToast'
+import { toast } from 'vue-sonner'
+import ImageUploader from '@/components/upload/ImageUploader.vue'
+
+interface Props {
+  statuses: Array<{ value: 'active' | 'available' | 'maintenance' | 'removed'; label: string }>
+}
+const props = defineProps<Props>()
 
 const breadcrumbs = [
   { label: 'Billboards', href: route('billboards.index') },
   { label: 'Create', href: route('billboards.create') }
 ]
 
-const toast = useToast()
 
 const form = useForm({
   name: '',
@@ -244,32 +277,42 @@ const form = useForm({
   width: null as number | null,
   height: null as number | null,
   monthly_rate: null as number | null,
-  status: 'active' as 'active' | 'inactive' | 'maintenance',
+  status: 'active' as 'active' | 'available' | 'maintenance' | 'removed',
   description: '',
 })
 
 const submit = () => {
-  form.post(route('billboards.store'), {
+  // Build FormData to include images[]
+  const fd = new FormData()
+  const data = form.data()
+  Object.entries(data).forEach(([k, v]) => {
+    if (v === null || v === undefined) return
+    fd.append(k, typeof v === 'number' ? String(v) : (v as any))
+  })
+  newImageFiles.value.forEach((file) => fd.append('images[]', file))
+
+  router.post(route('billboards.store'), fd, {
     onStart: () => {
-      toast.toast({
-        title: 'Creating billboard...',
-        description: 'Please wait while we process your request.',
-      })
+      toast('Creating billboard...', { description: 'Please wait while we process your request.' })
+    },
+    onProgress: (event: any) => {
+      if (event?.percentage != null) uploadProgress.value = event.percentage
     },
     onSuccess: () => {
-      toast.toast({
-        title: 'Success',
-        description: `Billboard "${form.name}" created successfully!`,
-        variant: 'default',
-      })
+      toast.success('Success', { description: `Billboard "${form.name}" created successfully!` })
+      uploadProgress.value = 0
     },
     onError: () => {
-      toast.toast({
-        title: 'Error',
-        description: 'Failed to create billboard. Please check the form and try again.',
-        variant: 'destructive',
-      })
-    }
+      toast.error('Error', { description: 'Failed to create billboard. Please check the form and try again.' })
+    },
+    preserveScroll: true,
   })
 }
+
+// Image selection state
+const newImageFiles = ref<File[]>([])
+const uploadProgress = ref(0)
+
+const MAX_FILES = 10
+const MAX_SIZE = 5 * 1024 * 1024 // 5MB
 </script>

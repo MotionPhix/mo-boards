@@ -24,8 +24,13 @@ class ContractTemplateResource extends JsonResource
             'formatted_price' => $this->price ? number_format($this->price, 2) : null,
             'is_active' => $this->is_active,
             'is_premium' => $this->is_premium ?? false,
+            'is_system_template' => $this->is_system_template ?? false,
             'category' => $this->category,
-            'tags' => $this->tags ? json_decode($this->tags, true) : [],
+            'tags' => $this->tags ? (is_array($this->tags) ? $this->tags : json_decode($this->tags, true)) : [],
+            'default_terms' => $this->default_terms ?? [],
+            'custom_fields' => $this->custom_fields ?? [],
+            'features' => $this->features,
+            'preview_image' => $this->preview_image,
             'company' => $this->when(
                 $this->relationLoaded('company') && $this->company,
                 function () {
@@ -47,7 +52,7 @@ class ContractTemplateResource extends JsonResource
                 'can_edit' => $this->company_id === $request->user()?->currentCompany?->id,
                 'can_delete' => $this->company_id === $request->user()?->currentCompany?->id,
                 'can_duplicate' => true,
-                'can_purchase' => $this->is_premium && $this->company_id !== $request->user()?->currentCompany?->id,
+                'can_purchase' => $this->is_system_template && $this->company_id !== $request->user()?->currentCompany?->id,
             ],
         ];
     }

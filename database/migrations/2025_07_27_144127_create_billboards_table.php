@@ -20,7 +20,7 @@ return new class extends Migration
       $table->decimal('width', 8, 2)->nullable();
       $table->decimal('height', 8, 2)->nullable();
       $table->decimal('monthly_rate', 10, 2)->default(0);
-      $table->enum('status', ['active', 'inactive', 'maintenance'])->default('active');
+  $table->enum('status', ['active', 'available', 'maintenance', 'removed'])->default('active');
       $table->text('description')->nullable();
       $table->timestamps();
     });

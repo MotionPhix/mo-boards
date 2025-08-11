@@ -1,552 +1,510 @@
-<template>
-  <AppLayout
-    title="Contract Templates"
-    :breadcrumbs="[
-      {label: 'Dashboard', href: route('dashboard')},
-      { label: 'Templates' }
-    ]">
-    <div class="pb-12">
-      <div class="max-w-7xl">
-        <!-- Templates Header -->
-        <div class="bg-gradient-to-br from-gray-800 to-gray-900 dark:from-gray-900 dark:to-black rounded-2xl mb-8 overflow-hidden">
-          <div class="relative px-6 py-10 sm:px-10 sm:py-14">
-            <!-- Subtle Background Pattern -->
-            <div class="absolute inset-0 opacity-5 dark:opacity-3">
-              <svg class="absolute top-0 left-0" viewBox="0 0 400 400" fill="none">
-                <circle cx="100" cy="100" r="80" fill="white" opacity="0.1"/>
-                <circle cx="150" cy="150" r="40" fill="white" opacity="0.15"/>
-                <circle cx="50" cy="150" r="25" fill="white" opacity="0.2"/>
-              </svg>
-            </div>
-
-            <div class="relative text-white max-w-4xl flex justify-between items-center">
-              <div>
-                <div class="mb-4">
-                  <h1 class="text-4xl sm:text-5xl font-bold mb-4 leading-tight">
-                    Contract
-                    <span class="text-gray-300 dark:text-gray-400">Templates</span>
-                  </h1>
-                  <div class="w-20 h-1 bg-gray-400 dark:bg-gray-500 rounded-full mb-4"></div>
-                </div>
-
-                <p class="text-gray-300 dark:text-gray-400 text-lg leading-relaxed mb-6">
-                  Manage your contract templates, browse the marketplace for professional templates,
-                  and streamline your contract creation process.
-                </p>
-
-                <!-- Stats section -->
-                <div class="flex flex-wrap gap-6 text-sm text-gray-400 dark:text-gray-500">
-                  <div>
-                    <span class="font-semibold text-white dark:text-gray-200 text-lg">{{ companyTemplates.length }}</span>
-                    <span class="ml-1">Your Templates</span>
-                  </div>
-                  <div>
-                    <span class="font-semibold text-white dark:text-gray-200 text-lg">{{ purchasedTemplates.length }}</span>
-                    <span class="ml-1">Purchased</span>
-                  </div>
-                  <div>
-                    <span class="font-semibold text-white dark:text-gray-200 text-lg">{{ availableSystemTemplates.length }}</span>
-                    <span class="ml-1">Available</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Action Buttons -->
-              <div class="hidden lg:flex flex-col gap-2 ml-8">
-                <Link
-                  :href="route('contract-templates.marketplace')"
-                  class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-xl text-gray-800 bg-white hover:bg-gray-50 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
-                >
-                  <svg class="shrink-0 w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                  </svg>
-                  Marketplace
-                </Link>
-                <Link
-                  :href="route('contract-templates.create')"
-                  class="inline-flex items-center justify-center px-6 py-3 border-2 border-white text-base font-medium rounded-xl text-white bg-transparent hover:bg-white hover:text-gray-800 transition-all duration-200 transform hover:-translate-y-1"
-                >
-                  <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  Create New
-                </Link>
-              </div>
-            </div>
-
-            <!-- Mobile Action Buttons -->
-            <div class="lg:hidden mt-8 flex flex-col sm:flex-row gap-4">
-              <Link
-                :href="route('contract-templates.marketplace')"
-                class="flex-1 inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-xl text-gray-800 bg-white hover:bg-gray-50 transition-all duration-200 shadow-lg"
-              >
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
-                Marketplace
-              </Link>
-              <Link
-                :href="route('contract-templates.create')"
-                class="flex-1 inline-flex items-center justify-center px-6 py-3 border-2 border-white text-base font-medium rounded-xl text-white bg-transparent hover:bg-white hover:text-gray-800 transition-all duration-200"
-              >
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                Create New
-              </Link>
-            </div>
-          </div>
-        </div>
-        <!-- Templates Overview Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <!-- Company Templates Card -->
-          <div class="bg-white overflow-hidden shadow rounded-lg">
-            <div class="p-5">
-              <div class="flex items-center">
-                <div class="flex-shrink-0">
-                  <svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <div class="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt class="text-sm font-medium text-gray-500 truncate">My Templates</dt>
-                    <dd class="text-lg font-medium text-gray-900">{{ companyTemplates.length }}</dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-            <div class="bg-gray-50 px-5 py-3">
-              <div class="text-sm">
-                <Link :href="route('contract-templates.create')" class="font-medium text-blue-700 hover:text-blue-900">
-                  Create new template
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          <!-- Purchased Templates Card -->
-          <div class="bg-white overflow-hidden shadow rounded-lg">
-            <div class="p-5">
-              <div class="flex items-center">
-                <div class="flex-shrink-0">
-                  <svg class="h-6 w-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div class="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt class="text-sm font-medium text-gray-500 truncate">Purchased Templates</dt>
-                    <dd class="text-lg font-medium text-gray-900">{{ purchasedTemplates.length }}</dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-            <div class="bg-gray-50 px-5 py-3">
-              <div class="text-sm">
-                <Link :href="route('contract-templates.marketplace')" class="font-medium text-blue-700 hover:text-blue-900">
-                  Browse marketplace
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          <!-- Available Templates Card -->
-          <div class="bg-white overflow-hidden shadow rounded-lg">
-            <div class="p-5">
-              <div class="flex items-center">
-                <div class="flex-shrink-0">
-                  <svg class="h-6 w-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                  </svg>
-                </div>
-                <div class="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt class="text-sm font-medium text-gray-500 truncate">Available to Purchase</dt>
-                    <dd class="text-lg font-medium text-gray-900">{{ availableSystemTemplates.length }}</dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-            <div class="bg-gray-50 px-5 py-3">
-              <div class="text-sm">
-                <Link :href="route('contract-templates.marketplace')" class="font-medium text-blue-700 hover:text-blue-900">
-                  View available templates
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Quick Actions -->
-        <div class="bg-white shadow rounded-lg mb-8">
-          <div class="px-6 py-4 border-b border-gray-200">
-            <h3 class="text-lg font-medium text-gray-900">Quick Actions</h3>
-          </div>
-          <div class="p-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Link
-                :href="route('contract-templates.create')"
-                class="group relative bg-white p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-500 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
-              >
-                <div>
-                  <span class="rounded-lg inline-flex p-3 bg-blue-50 text-blue-700 ring-4 ring-white group-hover:bg-blue-100">
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                  </span>
-                </div>
-                <div class="mt-4">
-                  <h3 class="text-lg font-medium text-gray-900">Create Template</h3>
-                  <p class="mt-2 text-sm text-gray-500">Create a new contract template from scratch</p>
-                </div>
-              </Link>
-
-              <Link
-                :href="route('contract-templates.marketplace')"
-                class="group relative bg-white p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-500 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
-              >
-                <div>
-                  <span class="rounded-lg inline-flex p-3 bg-green-50 text-green-700 ring-4 ring-white group-hover:bg-green-100">
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                    </svg>
-                  </span>
-                </div>
-                <div class="mt-4">
-                  <h3 class="text-lg font-medium text-gray-900">Browse Marketplace</h3>
-                  <p class="mt-2 text-sm text-gray-500">Find professional templates to purchase</p>
-                </div>
-              </Link>
-
-              <button
-                @click="showImportModal = true"
-                class="group relative bg-white p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-500 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors text-left"
-              >
-                <div>
-                  <span class="rounded-lg inline-flex p-3 bg-purple-50 text-purple-700 ring-4 ring-white group-hover:bg-purple-100">
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                    </svg>
-                  </span>
-                </div>
-                <div class="mt-4">
-                  <h3 class="text-lg font-medium text-gray-900">Import Template</h3>
-                  <p class="mt-2 text-sm text-gray-500">Import templates from external sources</p>
-                </div>
-              </button>
-
-              <Link
-                v-if="companyTemplates.length > 0"
-                :href="route('contract-templates.show', companyTemplates[0].uuid)"
-                class="group relative bg-white p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-500 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
-              >
-                <div>
-                  <span class="rounded-lg inline-flex p-3 bg-orange-50 text-orange-700 ring-4 ring-white group-hover:bg-orange-100">
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  </span>
-                </div>
-                <div class="mt-4">
-                  <h3 class="text-lg font-medium text-gray-900">Preview Latest</h3>
-                  <p class="mt-2 text-sm text-gray-500">Preview your most recent template</p>
-                </div>
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        <!-- Your Templates Section -->
-        <div class="bg-white shadow rounded-lg mb-8">
-          <div class="px-6 py-4 border-b border-gray-200">
-            <div class="flex justify-between items-center">
-              <h3 class="text-lg font-medium text-gray-900">My Templates</h3>
-              <span class="text-sm text-gray-500">{{ companyTemplates.length }} templates</span>
-            </div>
-          </div>
-
-          <div v-if="companyTemplates.length === 0" class="p-12 text-center">
-            <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <h3 class="text-lg font-medium text-gray-900 mb-2">No templates yet</h3>
-            <p class="text-gray-500 mb-6">Get started by creating your first template or browsing the marketplace.</p>
-            <div class="flex justify-center gap-3">
-              <Link
-                :href="route('contract-templates.create')"
-                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-              >
-                Create Template
-              </Link>
-              <Link
-                :href="route('contract-templates.marketplace')"
-                class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-              >
-                Browse Marketplace
-              </Link>
-            </div>
-          </div>
-
-          <div v-else>
-            <div class="overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>
-                      Template
-                    </TableHead>
-
-                    <TableHead>
-                      Status
-                    </TableHead>
-
-                    <TableHead>
-                      Contracts Used
-                    </TableHead>
-
-                    <TableHead>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-
-                <TableBody>
-                  <TableRow
-                    v-for="template in companyTemplates"
-                    :key="template.id">
-                    <TableCell>
-                      <div class="flex items-center">
-                        <div class="flex-shrink-0 h-10 w-10">
-                          <div class="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                            <svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </div>
-                        </div>
-                        <div class="ml-4">
-                          <div class="text-sm font-medium text-gray-900">{{ template.name }}</div>
-                          <div class="text-sm text-gray-500">{{ template.description || 'No description' }}</div>
-                        </div>
-                      </div>
-                    </TableCell>
-
-                    <TableCell>
-                      <span
-                        :class="[
-                          template.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800',
-                          'inline-flex px-2 py-1 text-xs font-semibold rounded-full'
-                        ]"
-                      >
-                        {{ template.is_active ? 'Active' : 'Inactive' }}
-                      </span>
-                    </TableCell>
-
-                    <TableCell>
-                      {{ template.contracts_count || 0 }} contracts
-                    </TableCell>
-
-                    <TableCell>
-                      <div class="flex items-center justify-end gap-2">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          @click="router.visit(route('contract-templates.show', template.uuid))">
-                          <EyeIcon />
-                        </Button>
-
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          @click="() => router.visit(route('contract-templates.edit', template.uuid))">
-                          <PencilIcon />
-                        </Button>
-
-                        <Button
-                          size="icon"
-                          variant="secondary"
-                          @click="duplicateTemplate(template)">
-                          <CopyIcon />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        </div>
-
-        <!-- Purchased Templates Section -->
-        <div v-if="purchasedTemplates.length > 0" class="bg-white shadow rounded-lg">
-          <div class="px-6 py-4 border-b border-gray-200">
-            <div class="flex justify-between items-center">
-              <h3 class="text-lg font-medium text-gray-900">Purchased Templates</h3>
-              <span class="text-sm text-gray-500">{{ purchasedTemplates.length }} templates</span>
-            </div>
-          </div>
-
-          <div class="overflow-hidden">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Template
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Contracts Used
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Purchase Date
-                  </th>
-                  <th scope="col" class="relative px-6 py-3">
-                    <span class="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                <tr v-for="template in purchasedTemplates" :key="template.id" class="hover:bg-gray-50">
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="flex items-center">
-                      <div class="flex-shrink-0 h-10 w-10">
-                        <div class="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                          <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
-                      </div>
-                      <div class="ml-4">
-                        <div class="text-sm font-medium text-gray-900">{{ template.name }}</div>
-                        <div class="text-sm text-gray-500">{{ template.description || 'Professional template' }}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                      {{ template.category }}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {{ template.contracts_count || 0 }} contracts
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {{ formatDate(template.created_at) }}
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div class="flex items-center justify-end gap-2">
-                      <Link
-                        :href="route('contract-templates.show', template.uuid)"
-                        class="text-blue-600 hover:text-blue-900"
-                      >
-                        View
-                      </Link>
-                      <button
-                        @click="duplicateTemplate(template)"
-                        class="text-green-600 hover:text-green-900"
-                      >
-                        Use Template
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Import Modal (placeholder for future implementation) -->
-    <div
-      v-if="showImportModal"
-      class="fixed inset-0 z-50 overflow-y-auto"
-      aria-labelledby="modal-title"
-      role="dialog"
-      aria-modal="true"
-    >
-      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="showImportModal = false"></div>
-        <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-          <div>
-            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
-              <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-              </svg>
-            </div>
-            <div class="mt-3 text-center sm:mt-5">
-              <h3 class="text-lg leading-6 font-medium text-gray-900">Import Template</h3>
-              <div class="mt-2">
-                <p class="text-sm text-gray-500">
-                  Template import functionality will be available in a future update.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div class="mt-5 sm:mt-6">
-            <button
-              type="button"
-              @click="showImportModal = false"
-              class="inline-flex justify-center w-full rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </AppLayout>
-</template>
-
 <script setup lang="ts">
-import { ref } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { CopyIcon, EyeIcon, PencilIcon } from 'lucide-vue-next';
-
-interface ContractTemplate {
-  id: number;
-  uuid: string;
-  name: string;
-  description?: string;
-  is_active: boolean;
-  contracts_count?: number;
-  category?: string;
-  created_at: string;
-  updated_at: string;
-}
+import { reactive, computed } from 'vue'
+import { router } from '@inertiajs/vue3'
+import { route } from 'ziggy-js'
+import { debounce } from 'lodash'
+import { Plus, FileText, Search, X, Eye, Edit, Copy, Trash2, Download, DollarSign } from 'lucide-vue-next'
+import AppLayout from '@/layouts/AppLayout.vue'
+import EmptyState from '@/components/EmptyState.vue'
+import Pagination from '@/components/Pagination.vue'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import type { ContractTemplate } from '@/types'
 
 interface Props {
-  companyTemplates: ContractTemplate[];
-  purchasedTemplates: ContractTemplate[];
-  availableSystemTemplates: ContractTemplate[];
+  templates: {
+    current_page: number
+    data: ContractTemplate[]
+    first_page_url: string
+    from: number | null
+    last_page: number
+    last_page_url: string
+    links: Array<{
+      url: string | null
+      label: string
+      active: boolean
+    }>
+    next_page_url: string | null
+    path: string
+    per_page: number
+    prev_page_url: string | null
+    to: number | null
+    total: number
+    meta: {
+      current_page: number
+      from: number | null
+      last_page: number
+      links: Array<{
+        url: string | null
+        label: string
+        active: boolean
+      }>
+      path: string
+      per_page: number
+      to: number | null
+      total: number
+    }
+  }
+  stats: {
+    total: number
+    company: number
+    purchased: number
+    available: number
+    active: number
+    categories: string[]
+  }
+  filters: {
+    search?: string
+    category?: string
+    status?: string
+    type?: string
+    sort?: string
+    direction?: string
+  }
+  categories: string[]
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
-const showImportModal = ref(false);
+const searchForm = reactive({
+  search: props.filters.search || '',
+  category: props.filters.category || '',
+  status: props.filters.status || '',
+  type: props.filters.type || '',
+  sort: props.filters.sort || 'created_at',
+  direction: props.filters.direction || 'desc',
+})
+
+const debouncedSearch = debounce(() => {
+  const formData = {
+    search: searchForm.search,
+    category: searchForm.category,
+    status: searchForm.status,
+    type: searchForm.type,
+    sort: searchForm.sort,
+    direction: searchForm.direction,
+  }
+
+  router.get(route('contract-templates.index'), formData, {
+    preserveState: true,
+    replace: true,
+  })
+}, 300)
+
+const updateFilter = (field: string, value: any) => {
+  const stringValue = value === 'all' ? '' : (value ? String(value) : '')
+  ;(searchForm as any)[field] = stringValue
+
+  const formData = {
+    search: searchForm.search,
+    category: searchForm.category,
+    status: searchForm.status,
+    type: searchForm.type,
+    sort: searchForm.sort,
+    direction: searchForm.direction,
+  }
+
+  router.get(route('contract-templates.index'), formData, {
+    preserveState: true,
+    replace: true,
+  })
+}
+
+const hasActiveFilters = computed(() => {
+  return !!searchForm.search || !!searchForm.category || !!searchForm.status || !!searchForm.type
+})
+
+const hasTemplates = computed(() => {
+  return props.templates?.data && Array.isArray(props.templates.data) && props.templates.data.length > 0
+})
+
+const templateCount = computed(() => {
+  return props.templates?.meta?.total || 0
+})
+
+const clearFilters = () => {
+  searchForm.search = ''
+  searchForm.category = ''
+  searchForm.status = ''
+  searchForm.type = ''
+  searchForm.sort = 'created_at'
+  searchForm.direction = 'desc'
+
+  router.get(route('contract-templates.index'), {}, {
+    preserveState: true,
+    replace: true,
+  })
+}
+
+const getEmptyStateDescription = () => {
+  const hasFilters = hasActiveFilters.value
+
+  if (hasFilters) {
+    return "No templates match your current search criteria. Try adjusting your filters or search terms."
+  }
+
+  return "Start creating contract templates to streamline your contract creation process. Templates allow you to reuse common contract structures and terms."
+}
+
+const viewTemplate = (template: ContractTemplate) => {
+  router.visit(route('contract-templates.show', template.uuid))
+}
+
+const editTemplate = (template: ContractTemplate) => {
+  router.visit(route('contract-templates.edit', template.uuid))
+}
+
+const duplicateTemplate = (template: ContractTemplate) => {
+  router.post(route('contract-templates.duplicate', template.uuid))
+}
+
+const deleteTemplate = (template: ContractTemplate) => {
+  if (confirm('Are you sure you want to delete this template?')) {
+    router.delete(route('contract-templates.destroy', template.uuid))
+  }
+}
+
+const exportPdf = (template: ContractTemplate) => {
+  window.open(route('contract-templates.export-pdf', template.uuid), '_blank')
+}
 
 const formatDate = (dateString: string): string => {
   return new Date(dateString).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
-  });
-};
+  })
+}
 
-const duplicateTemplate = (template: ContractTemplate) => {
-  router.post(route('contract-templates.duplicate', template.uuid), {}, {
-    onSuccess: () => {
-      // Optionally show a success message or refresh the page
-      router.reload();
-    },
-    onError: (errors) => {
-      console.error('Error duplicating template:', errors);
-    }
-  });
-};
+const getStatusClasses = (template: ContractTemplate): string => {
+  if (!template.is_active) {
+    return 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600'
+  }
+  if (template.is_premium) {
+    return 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700'
+  }
+  return 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700'
+}
 </script>
+
+<template>
+  <AppLayout
+    title="Contract Templates"
+    :breadcrumbs="[
+      { label: 'Dashboard', href: route('dashboard') },
+      { label: 'Contract Templates' }
+    ]"
+  >
+    <!-- Full-width header/hero section -->
+    <div class=" py-8">
+      <div>
+        <!-- Header -->
+        <div class="flex flex-col gap-6 lg:flex-row lg:justify-between lg:items-center">
+          <!-- Title Section -->
+          <div class="flex-1">
+            <div class="flex items-center gap-3 mb-2">
+              <div class="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <FileText class="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">Contract Templates</h1>
+                <p class="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+                  Create and manage reusable contract templates for your business
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stats & Actions Section -->
+          <div class="flex flex-col lg:flex-row lg:items-center gap-6">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3">
+              <div class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3 text-center">
+                <div class="text-lg font-bold text-emerald-700 dark:text-emerald-300">{{ stats.active }}</div>
+                <div class="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Active</div>
+              </div>
+              <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-center">
+                <div class="text-lg font-bold text-blue-700 dark:text-blue-300">{{ stats.company }}</div>
+                <div class="text-xs text-blue-600 dark:text-blue-400 font-medium">Company</div>
+              </div>
+              <div class="bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-lg p-3 text-center">
+                <div class="text-lg font-bold text-violet-700 dark:text-violet-300">{{ stats.purchased }}</div>
+                <div class="text-xs text-violet-600 dark:text-violet-400 font-medium">Purchased</div>
+              </div>
+              <div class="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-center">
+                <div class="text-lg font-bold text-slate-700 dark:text-slate-300">{{ stats.total }}</div>
+                <div class="text-xs text-slate-600 dark:text-slate-400 font-medium">Total</div>
+              </div>
+            </div>
+
+            <!-- Action Button -->
+            <Button
+              @click="router.visit(route('contract-templates.create'))"
+              class="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 lg:flex-shrink-0"
+              size="lg">
+              <Plus class="h-5 w-5" />
+              New
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main content with max-w-5xl constraint -->
+    <div class="max-w-5xl mx-auto space-y-6">
+      <!-- Filters -->
+      <Card class="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm">
+        <CardContent class="p-4 sm:p-6">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div class="sm:col-span-2 xl:col-span-2">
+              <Label htmlFor="search" class="text-sm font-medium text-slate-700 dark:text-slate-300">Search Templates</Label>
+              <div class="relative mt-1.5">
+                <Search class="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-slate-500 h-4 w-4" />
+                <Input
+                  id="search"
+                  v-model="searchForm.search"
+                  type="text"
+                  placeholder="Search by name or description..."
+                  class="pl-10 border-slate-300 dark:border-slate-600 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-slate-900"
+                  @input="debouncedSearch"
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="category" class="text-sm font-medium text-slate-700 dark:text-slate-300">Category</Label>
+              <Select
+                :model-value="searchForm.category || 'all'"
+                @update:model-value="(value) => updateFilter('category', value)"
+              >
+                <SelectTrigger class="mt-1.5 w-full border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent class="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem v-for="category in categories" :key="category" :value="category">
+                    {{ category }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="status" class="text-sm font-medium text-slate-700 dark:text-slate-300">Status</Label>
+              <Select
+                :model-value="searchForm.status || 'all'"
+                @update:model-value="(value) => updateFilter('status', value)"
+              >
+                <SelectTrigger class="mt-1.5 w-full border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent class="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="type" class="text-sm font-medium text-slate-700 dark:text-slate-300">Type</Label>
+              <Select
+                :model-value="searchForm.type || 'all'"
+                @update:model-value="(value) => updateFilter('type', value)"
+              >
+                <SelectTrigger class="mt-1.5 w-full border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900">
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent class="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="company">Company</SelectItem>
+                  <SelectItem value="purchased">Purchased</SelectItem>
+                  <SelectItem value="available">Available</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <!-- Clear Filters and Results Summary -->
+          <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mt-4 space-y-3 sm:space-y-0">
+            <div v-if="templateCount > 0" class="order-2 sm:order-1">
+              <p class="text-xs text-slate-600 dark:text-slate-400">
+                Showing <span class="font-medium text-slate-900 dark:text-slate-100">{{ templates.meta.from }}</span> to
+                <span class="font-medium text-slate-900 dark:text-slate-100">{{ templates.meta.to }}</span> of
+                <span class="font-medium text-slate-900 dark:text-slate-100">{{ templates.meta.total }}</span> templates
+                <span v-if="hasActiveFilters" class="text-blue-600 dark:text-blue-400"> (filtered)</span>
+              </p>
+            </div>
+
+            <div v-if="hasActiveFilters" class="order-1 sm:order-2">
+              <Button variant="outline" @click="clearFilters" class="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 w-full sm:w-auto">
+                <X class="h-4 w-4 mr-2" />
+                Clear Filters
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- Templates Grid -->
+      <div v-if="hasTemplates" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <Card
+          v-for="template in templates.data"
+          :key="template.id"
+          class="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 flex flex-col"
+        >
+          <CardHeader class="pb-3 flex-shrink-0">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex-1 min-w-0">
+                <CardTitle class="text-lg font-semibold text-slate-900 dark:text-slate-100 truncate">
+                  {{ template.name }}
+                </CardTitle>
+                <p v-if="template.description" class="text-sm text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
+                  {{ template.description }}
+                </p>
+              </div>
+              <div class="flex flex-col sm:flex-row items-end sm:items-center gap-2 flex-shrink-0">
+                <Badge :class="getStatusClasses(template)" class="text-xs whitespace-nowrap">
+                  {{ template.is_active ? 'Active' : 'Inactive' }}
+                </Badge>
+                <Badge v-if="template.is_premium" variant="outline" class="text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-600 text-xs whitespace-nowrap">
+                  <DollarSign class="h-3 w-3 mr-1" />
+                  Premium
+                </Badge>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent class="pt-0 flex-1 flex flex-col justify-between">
+            <div class="space-y-3 flex-1">
+              <!-- Template Info -->
+              <div class="space-y-2">
+                <div v-if="template.category" class="flex items-center text-sm text-slate-600 dark:text-slate-400">
+                  <FileText class="h-4 w-4 mr-2 text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                  <span class="truncate">{{ template.category }}</span>
+                </div>
+                <div v-if="template.formatted_price" class="flex items-center text-sm text-slate-600 dark:text-slate-400">
+                  <DollarSign class="h-4 w-4 mr-2 text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                  <span class="truncate">{{ template.formatted_price }}</span>
+                </div>
+                <div class="flex items-center text-sm text-slate-500 dark:text-slate-400">
+                  <span class="truncate">Used in {{ template.contracts_count || 0 }} contracts</span>
+                </div>
+                <div class="flex items-center text-xs text-slate-400 dark:text-slate-500">
+                  <span class="truncate">Created {{ formatDate(template.created_at) }}</span>
+                </div>
+              </div>
+
+              <!-- Tags -->
+              <div v-if="template.tags && template.tags.length > 0" class="flex flex-wrap gap-1">
+                <Badge v-for="tag in template.tags.slice(0, 2)" :key="tag" variant="secondary"
+                       class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                  {{ tag }}
+                </Badge>
+                <Badge v-if="template.tags.length > 2" variant="secondary"
+                       class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                  +{{ template.tags.length - 2 }} more
+                </Badge>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-700 mt-3">
+              <div class="flex items-center space-x-1 overflow-x-auto">
+                <Button
+                  v-if="template.actions && template.actions.can_view"
+                  variant="ghost"
+                  size="sm"
+                  @click="viewTemplate(template)"
+                  class="h-8 w-8 p-0 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 flex-shrink-0"
+                  title="View Template"
+                >
+                  <Eye class="h-4 w-4" />
+                </Button>
+
+                <Button
+                  v-if="template.actions && template.actions.can_edit"
+                  variant="ghost"
+                  size="sm"
+                  @click="editTemplate(template)"
+                  class="h-8 w-8 p-0 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 flex-shrink-0"
+                  title="Edit Template"
+                >
+                  <Edit class="h-4 w-4" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  @click="duplicateTemplate(template)"
+                  class="h-8 w-8 p-0 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 flex-shrink-0"
+                  title="Duplicate Template"
+                >
+                  <Copy class="h-4 w-4" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  @click="exportPdf(template)"
+                  class="h-8 w-8 p-0 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 flex-shrink-0"
+                  title="Export PDF"
+                >
+                  <Download class="h-4 w-4" />
+                </Button>
+
+                <Button
+                  v-if="template.actions && template.actions.can_delete"
+                  variant="ghost"
+                  size="sm"
+                  @click="deleteTemplate(template)"
+                  class="h-8 w-8 p-0 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 flex-shrink-0"
+                  title="Delete Template"
+                >
+                  <Trash2 class="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <!-- Empty State -->
+      <Card v-else class="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm">
+        <CardContent class="p-8">
+          <EmptyState
+            title="No templates found"
+            :description="getEmptyStateDescription()"
+            :icon="FileText"
+            action-label="Create Your First Template"
+            :action-icon="Plus"
+            :action-handler="() => router.visit(route('contract-templates.create'))"
+          >
+            <template #actions>
+              <Button @click="router.visit(route('contract-templates.create'))"
+                     class="bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white mb-3 w-full sm:w-auto">
+                <Plus class="h-4 w-4 mr-2" />
+                Create Your First Template
+              </Button>
+              <div class="text-sm text-slate-500 dark:text-slate-400 text-center sm:text-left">
+                <p>Start by creating a template with common contract terms and placeholders.</p>
+              </div>
+            </template>
+          </EmptyState>
+        </CardContent>
+      </Card>      <!-- Pagination -->
+      <div v-if="hasTemplates" class="flex justify-center px-4">
+        <div class="w-full max-w-sm sm:max-w-none">
+          <Pagination :links="templates.links" />
+        </div>
+      </div>
+    </div>
+  </AppLayout>
+</template>

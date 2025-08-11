@@ -23,6 +23,7 @@ class User extends Authenticatable implements HasMedia
     'phone',
     'current_company_id',
     'last_active_at',
+    'theme_preference',
   ];
 
   protected $hidden = [
@@ -78,6 +79,16 @@ class User extends Authenticatable implements HasMedia
       ->first();
 
     return $companyUser ? $companyUser->pivot->role : null;
+  }
+
+  /**
+   * Grant a direct permission to the user (testing convenience)
+   */
+  public function grantPermission(string $permission): void
+  {
+    if (!$this->hasPermissionTo($permission)) {
+      $this->givePermissionTo($permission);
+    }
   }
 
   /**

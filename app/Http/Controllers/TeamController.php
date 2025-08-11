@@ -24,8 +24,6 @@ class TeamController extends Controller
 {
     public function index(Request $request): Response
     {
-        $this->authorize('viewTeamMembers', $request->user()->currentCompany);
-
         $company = $request->user()->currentCompany;
 
         // Get all users associated with the current company
@@ -63,19 +61,23 @@ class TeamController extends Controller
                     'expires_at' => $invitation->expires_at->format('M d, Y'),
                     'created_at' => $invitation->created_at->format('M d, Y'),
                     'can' => [
-                        'cancel' => $request->user()->can('manageInvitations', $company),
+                        'cancel' => $request->user()->can('inviteTeamMember', $company),
                     ],
                 ];
             });
 
-        $roles = Role::all()->map(function ($role) {
-            return [
-                'id' => $role->id,
-                'name' => $role->name,
-                'description' => $this->getRoleDescription($role->name),
-                'permissions' => $role->load('permissions')->pluck('name'),
-            ];
-        });
+        // Filter roles for team invitations - exclude super_admin and company_owner
+        // Super admins are created via tinker only, company owners are the ones inviting
+        $roles = Role::whereNotIn('name', ['super_admin', 'company_owner'])
+            ->get()
+            ->map(function ($role) {
+                return [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'description' => $this->getRoleDescription($role->name),
+                    'permissions' => $role->load('permissions')->pluck('name'),
+                ];
+            });
 
         return Inertia::render('team/Index', [
             'team' => new TeamResource($teamMembers),
@@ -89,9 +91,74 @@ class TeamController extends Controller
                 'canInviteUsers' => $request->user()->can('inviteTeamMember', $company),
                 'canRemoveUsers' => $request->user()->can('removeTeamMember', $company),
                 'canUpdateRoles' => $request->user()->can('updateTeamMember', $company),
-                'canManageInvitations' => $request->user()->can('manageInvitations', $company),
-                'canViewActivity' => $request->user()->can('viewTeamActivity', $company),
             ],
+        ]);
+    }
+
+    public function inviteModal(Request $request): Response
+    {
+        $company = $request->user()->currentCompany;
+
+        // Filter roles for team invitations - exclude super_admin and company_owner
+        // Super admins are created via tinker only, company owners are the ones inviting
+        $roles = Role::whereNotIn('name', ['super_admin', 'company_owner'])
+            ->get()
+            ->map(function ($role) {
+                return [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'description' => $this->getRoleDescription($role->name),
+                    'permissions' => $role->load('permissions')->pluck('name'),
+                ];
+            });
+
+        return Inertia::render('team/InviteUserModal', [
+            'roles' => $roles,
+        ]);
+    }
+
+    public function editModal(Request $request, User $member): Response
+    {
+        $company = $request->user()->currentCompany;
+
+        // Get the member with pivot data
+        $memberWithPivot = $company->users()->where('users.id', $member->id)->first();
+
+        // Check if the member belongs to the current company
+        if (!$memberWithPivot) {
+            abort(404);
+        }
+
+        // Filter roles for team invitations - exclude super_admin and company_owner
+        // Super admins are created via tinker only, company owners are the ones inviting
+        $roles = Role::whereNotIn('name', ['super_admin', 'company_owner'])
+            ->get()
+            ->map(function ($role) {
+                return [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'description' => $this->getRoleDescription($role->name),
+                    'permissions' => $role->load('permissions')->pluck('name'),
+                ];
+            });
+
+        $memberData = [
+            'id' => $memberWithPivot->id,
+            'name' => $memberWithPivot->name,
+            'email' => $memberWithPivot->email,
+            'role' => $memberWithPivot->pivot->role,
+            'is_owner' => (bool)$memberWithPivot->pivot->is_owner,
+            'avatar' => $memberWithPivot->profile_photo_url,
+            'joined_at' => $memberWithPivot->pivot->created_at->format('M d, Y'),
+            'can' => [
+                'edit' => $request->user()->can('updateTeamMember', $company),
+                'delete' => $request->user()->can('removeTeamMember', $company) && !$memberWithPivot->pivot->is_owner && $request->user()->id !== $memberWithPivot->id,
+            ],
+        ];
+
+        return Inertia::render('team/EditMemberModal', [
+            'member' => $memberData,
+            'roles' => $roles,
         ]);
     }
 

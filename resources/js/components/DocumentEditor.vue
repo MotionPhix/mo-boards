@@ -228,7 +228,7 @@ const config = computed(() => {
 			supportAllValues: true
 		},
 		fontSize: {
-			options: [10, 12, 14, 'default', 18, 20, 22],
+			options: [10, 12, 14, 'default', 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40],
 			supportAllValues: true
 		},
 		fullscreen: {
@@ -458,3 +458,4 @@ function updateModelValue(data: string) {
 		</div>
 	</div>
 </template>
+

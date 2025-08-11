@@ -41,6 +41,7 @@ class HandleInertiaRequests extends Middleware
           'avatar' => $request->user()->avatar ?? null,
           'current_company_id' => $request->user()->current_company_id ?? null,
           'last_active_at' => $request->user()->last_active_at ?? null,
+          'theme_preference' => $request->user()->theme_preference ?? 'system',
           'companies' => $request->user()->companies()->get()->map(function ($company) {
             return [ // ->with('pivot')
               'id' => $company->id,
@@ -68,6 +69,10 @@ class HandleInertiaRequests extends Middleware
           ] : null,
           'abilities' => $request->user() ? $this->getUserAbilities($request->user()) : [],
         ] : null,
+      ],
+      'theme' => [
+        'current' => $request->cookie('theme', 'system'),
+        'user_preference' => $request->user()?->theme_preference ?? null,
       ],
       'flash' => [
         'success' => $request->session()->get('success'),
@@ -97,44 +102,97 @@ class HandleInertiaRequests extends Middleware
     }
 
     return [
-      // Billboard abilities
+      // Company management abilities
+      'can_view_companies' => $user->can('companies.view_any'),
+      'can_view_company' => $user->can('companies.view'),
+      'can_create_companies' => $user->can('companies.create'),
+      'can_update_companies' => $user->can('companies.update'),
+      'can_delete_companies' => $user->can('companies.delete'),
+      'can_switch_companies' => $user->can('companies.switch'),
+      'can_manage_company_settings' => $user->can('companies.manage_settings'),
+      'can_view_company_billing' => $user->can('companies.view_billing'),
+      'can_manage_company_billing' => $user->can('companies.manage_billing'),
+
+      // Billboard management abilities
       'can_view_billboards' => $user->can('billboards.view_any'),
+      'can_view_billboard' => $user->can('billboards.view'),
       'can_create_billboards' => $user->can('billboards.create'),
       'can_update_billboards' => $user->can('billboards.update'),
       'can_delete_billboards' => $user->can('billboards.delete'),
       'can_duplicate_billboards' => $user->can('billboards.duplicate'),
+      'can_bulk_update_billboards' => $user->can('billboards.bulk_update'),
+      'can_upload_billboard_media' => $user->can('billboards.upload_media'),
+      'can_manage_billboard_media' => $user->can('billboards.manage_media'),
+      'can_view_billboard_analytics' => $user->can('billboards.view_analytics'),
       'can_export_billboard_data' => $user->can('billboards.export_data'),
 
-      // Contract abilities
+      // Contract management abilities
       'can_view_contracts' => $user->can('contracts.view_any'),
+      'can_view_contract' => $user->can('contracts.view'),
       'can_create_contracts' => $user->can('contracts.create'),
       'can_update_contracts' => $user->can('contracts.update'),
       'can_delete_contracts' => $user->can('contracts.delete'),
       'can_approve_contracts' => $user->can('contracts.approve'),
       'can_cancel_contracts' => $user->can('contracts.cancel'),
+      'can_manage_contract_payments' => $user->can('contracts.manage_payments'),
+      'can_view_contract_financial' => $user->can('contracts.view_financial'),
 
-      // Team abilities
+      // Team/User management abilities
       'can_view_team' => $user->can('team.view_any'),
+      'can_view_team_member' => $user->can('team.view'),
       'can_invite_team_members' => $user->can('team.invite'),
       'can_update_team_roles' => $user->can('team.update_roles'),
+      'can_update_team_permissions' => $user->can('team.update_permissions'),
       'can_remove_team_members' => $user->can('team.remove'),
       'can_manage_invitations' => $user->can('team.manage_invitations'),
+      'can_view_team_activity' => $user->can('team.view_activity'),
 
-      // Company abilities
-      'can_view_companies' => $user->can('companies.view_any'),
-      'can_create_companies' => $user->can('companies.create'),
-      'can_update_companies' => $user->can('companies.update'),
-      'can_delete_companies' => $user->can('companies.delete'),
-      'can_manage_company_settings' => $user->can('companies.manage_settings'),
-      'can_switch_companies' => $user->can('companies.switch'),
+      // User profile abilities
+      'can_update_own_profile' => $user->can('users.update_own_profile'),
+      'can_update_any_profile' => $user->can('users.update_any_profile'),
+      'can_change_password' => $user->can('users.change_password'),
+      'can_manage_sessions' => $user->can('users.manage_sessions'),
+      'can_view_user_activity' => $user->can('users.view_activity'),
 
-      // Analytics abilities
-      'can_view_analytics' => $user->can('analytics.view_dashboard'),
+      // Analytics and reporting abilities
+      'can_view_analytics_dashboard' => $user->can('analytics.view_dashboard'),
+      'can_view_billboard_analytics' => $user->can('analytics.view_billboard'),
+      'can_view_contract_analytics' => $user->can('analytics.view_contract'),
+      'can_view_financial_analytics' => $user->can('analytics.view_financial'),
       'can_export_reports' => $user->can('analytics.export_reports'),
+      'can_view_advanced_analytics' => $user->can('analytics.view_advanced'),
 
-      // Financial abilities
-      'can_view_financial_data' => $user->can('finance.view_revenue'),
+      // Financial management abilities
+      'can_view_revenue' => $user->can('finance.view_revenue'),
+      'can_view_expenses' => $user->can('finance.view_expenses'),
       'can_manage_payments' => $user->can('finance.manage_payments'),
+      'can_view_invoices' => $user->can('finance.view_invoices'),
+      'can_create_invoices' => $user->can('finance.create_invoices'),
+      'can_export_financial_data' => $user->can('finance.export_financial'),
+
+      // System administration abilities (for super admins)
+      'can_access_admin_panel' => $user->can('admin.access_panel'),
+      'can_manage_system' => $user->can('admin.manage_system'),
+      'can_view_system_logs' => $user->can('admin.view_logs'),
+      'can_manage_permissions' => $user->can('admin.manage_permissions'),
+      'can_manage_roles' => $user->can('admin.manage_roles'),
+
+      // Contract template abilities
+      'can_view_contract_templates' => $user->can('contract_templates.view_any'),
+      'can_view_contract_template' => $user->can('contract_templates.view'),
+      'can_create_contract_templates' => $user->can('contract_templates.create'),
+      'can_update_contract_templates' => $user->can('contract_templates.update'),
+      'can_delete_contract_templates' => $user->can('contract_templates.delete'),
+      'can_duplicate_contract_templates' => $user->can('contract_templates.duplicate'),
+      'can_create_premium_templates' => $user->can('contract_templates.create_premium'),
+      'can_manage_template_categories' => $user->can('contract_templates.manage_categories'),
+
+      // Role-based abilities for UI logic
+      'is_super_admin' => $user->hasRole('super_admin'),
+      'is_company_owner' => $user->hasRole('company_owner'),
+      'is_manager' => $user->hasRole('manager'),
+      'is_editor' => $user->hasRole('editor'),
+      'is_viewer' => $user->hasRole('viewer'),
     ];
   }
 }

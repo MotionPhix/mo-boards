@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\ContractTemplate;
 use App\Models\PurchasedTemplate;
 use App\Models\TemplatePaymentTransaction;
+use App\Services\PlaceholderService;
+use App\Services\ContractTemplateService;
 use App\Services\PayChangu\PayChanguService;
 use App\Services\PayChangu\PayChanguPaymentRequest;
 use HosmelQ\NameOfPerson\PersonName;
@@ -21,39 +23,21 @@ class ContractTemplateController extends Controller
 {
   use AuthorizesRequests;
 
-  public function index(): Response
+  protected ContractTemplateService $templateService;
+
+  public function __construct(ContractTemplateService $templateService)
   {
-    $company = Auth::user()->currentCompany;
+    $this->templateService = $templateService;
+  }
 
-    // Get company's own templates
-    $companyTemplates = ContractTemplate::where('company_id', $company->id)
-      ->withCount('contracts')
-      ->orderBy('created_at', 'desc')
-      ->get();
+  public function index(Request $request): Response
+  {
+    $data = $this->templateService->getTemplatesForIndex($request);
 
-    // Get purchased system templates
-    $purchasedTemplates = ContractTemplate::systemTemplates()
-      ->whereHas('purchasedBy', function ($query) use ($company) {
-        $query->where('company_id', $company->id);
-      })
-      ->withCount('contracts')
-      ->orderBy('created_at', 'desc')
-      ->get();
+    // Add available categories for the filter dropdown
+    $data['categories'] = $this->templateService->getAvailableCategories();
 
-    // Get available system templates (not purchased)
-    $availableSystemTemplates = ContractTemplate::systemTemplates()
-      ->active()
-      ->whereDoesntHave('purchasedBy', function ($query) use ($company) {
-        $query->where('company_id', $company->id);
-      })
-      ->orderBy('created_at', 'desc')
-      ->get();
-
-    return Inertia::render('contract-templates/Index', [
-      'companyTemplates' => $companyTemplates,
-      'purchasedTemplates' => $purchasedTemplates,
-      'availableSystemTemplates' => $availableSystemTemplates,
-    ]);
+    return Inertia::render('contract-templates/Index', $data);
   }
 
   public function create(Request $request): Response
@@ -65,7 +49,16 @@ class ContractTemplateController extends Controller
       return Inertia::render('contract-templates/ModalCreate');
     }
 
-    return Inertia::render('contract-templates/Create');
+    // Get available categories for the dropdown
+    $categories = $this->templateService->getAvailableCategories();
+
+    // Provide available placeholders to help authors insert variables
+    $placeholders = PlaceholderService::getAvailablePlaceholders();
+
+    return Inertia::render('contract-templates/Create', [
+      'categories' => $categories,
+      'placeholders' => $placeholders,
+    ]);
   }
 
   public function store(Request $request)
@@ -90,20 +83,31 @@ class ContractTemplateController extends Controller
       ],
       'description' => 'nullable|string',
       'content' => 'nullable|string',
+      'category' => 'nullable|string|max:255',
       'default_terms' => 'nullable|array',
       'custom_fields' => 'nullable|array',
       'is_active' => 'boolean',
+      'is_premium' => 'boolean',
+      'price' => 'nullable|numeric|min:0',
     ]);
+
+    // Check if user is super admin for premium template creation
+    $user = $request->user();
+    $isSuperAdmin = $user->hasRole('super_admin');
 
     // Provide default values for required fields if not present
     $templateData = [
       'name' => $validated['name'],
       'description' => $validated['description'] ?? null,
       'content' => $validated['content'] ?? null,
+      'category' => $validated['category'] ?? null,
       'default_terms' => $validated['default_terms'] ?? [], // Default to empty array
       'custom_fields' => $validated['custom_fields'] ?? [], // Default to empty array
       'is_active' => $validated['is_active'] ?? true,
-      'company_id' => $company->id,
+      'is_system_template' => $isSuperAdmin && ($validated['is_premium'] ?? false),
+      'is_premium' => $isSuperAdmin && ($validated['is_premium'] ?? false),
+      'price' => ($isSuperAdmin && ($validated['is_premium'] ?? false)) ? ($validated['price'] ?? 0) : null,
+      'company_id' => ($isSuperAdmin && ($validated['is_premium'] ?? false)) ? null : $company->id,
     ];
 
     ContractTemplate::create($templateData);
@@ -126,8 +130,12 @@ class ContractTemplateController extends Controller
 
   public function edit(ContractTemplate $contractTemplate): Response
   {
+    // Get available categories for the dropdown
+    $categories = $this->templateService->getAvailableCategories();
+
     return Inertia::render('contract-templates/Edit', [
-      'template' => $contractTemplate
+      'template' => $contractTemplate,
+      'categories' => $categories
     ]);
   }
 
@@ -152,9 +160,12 @@ class ContractTemplateController extends Controller
       ],
       'description' => 'nullable|string',
       'content' => 'nullable|string',
+      'category' => 'nullable|string|max:255',
       'default_terms' => 'nullable|array',
       'custom_fields' => 'nullable|array',
       'is_active' => 'boolean',
+      'is_premium' => 'boolean',
+      'price' => 'nullable|numeric|min:0',
     ]);
 
     $contractTemplate->update($validated);

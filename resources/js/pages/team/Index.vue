@@ -1,31 +1,26 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { Head, router, usePage } from '@inertiajs/vue3'
-import { useToast } from '@/composables/useToast'
-import { useTheme } from '@/composables/useTheme'
+import { toast } from 'vue-sonner'
 import {
-  Users, UserPlus, Mail, Check, X,
-  Trash2, Edit, ShieldCheck, Shield, AlertTriangle
+  Users, UserPlus, Mail, X,
+  Trash2, Pencil as Edit, ShieldCheck, Shield
 } from 'lucide-vue-next'
 import AppLayout from '@/layouts/AppLayout.vue'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardDescription, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow
 } from '@/components/ui/table'
+import { ModalLink } from '@inertiaui/modal-vue'
 
 interface TeamMember {
   id: number
@@ -78,86 +73,31 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-const toast = useToast()
-const theme = useTheme()
 const page = usePage()
 
-console.log(props.roles);
+// Get user abilities from auth
+const auth = computed(() => page.props.auth as any)
+const userAbilities = computed(() => auth.value?.user?.abilities || {})
 
-// State for invite form
-const inviteDialogOpen = ref(false)
-const editMemberDialogOpen = ref(false)
-const selectedMember = ref<TeamMember | null>(null)
+// Use abilities from auth system instead of props for better security
+const canInviteUsers = computed(() => userAbilities.value.can_invite_team_members)
+const canRemoveUsers = computed(() => userAbilities.value.can_remove_team_members)
+const canUpdateRoles = computed(() => userAbilities.value.can_update_team_roles)
 
-const form = ref({
-  name: '',
-  email: '',
-  role: 'editor',
+// Security: Show Role Permissions section only to users who can manage roles/permissions
+const canViewRolePermissions = computed(() => {
+  return userAbilities.value.is_super_admin ||
+         userAbilities.value.is_company_owner ||
+         userAbilities.value.can_manage_roles ||
+         userAbilities.value.can_update_team_roles
 })
-
-const formErrors = ref<Record<string, string>>({})
-
-// Reset the form
-const resetForm = () => {
-  form.value = {
-    name: '',
-    email: '',
-    role: 'editor',
-  }
-  formErrors.value = {}
-}
-
-// Submit the invitation
-const submitInvitation = () => {
-  router.post(route('team.invite'), form.value, {
-    onSuccess: () => {
-      inviteDialogOpen.value = false
-      resetForm()
-      toast.toast({
-        title: 'Team member invited',
-        description: `${form.value.name} has been invited to join the team`,
-      })
-    },
-    onError: (errors) => {
-      formErrors.value = errors
-    }
-  })
-}
-
-// Open edit dialog for a team member
-const editMember = (member: TeamMember) => {
-  selectedMember.value = member
-  form.value.role = member.role
-  editMemberDialogOpen.value = true
-}
-
-// Update team member
-const updateMember = () => {
-  if (!selectedMember.value) return
-
-  router.put(route('team.update', { member: selectedMember.value.id }), {
-    role: form.value.role
-  }, {
-    onSuccess: () => {
-      editMemberDialogOpen.value = false
-      selectedMember.value = null
-      toast.toast({
-        title: 'Team member updated',
-        description: 'The team member role has been updated successfully',
-      })
-    },
-    onError: (errors) => {
-      formErrors.value = errors
-    }
-  })
-}
 
 // Remove a team member
 const removeMember = (member: TeamMember) => {
   if (confirm(`Are you sure you want to remove ${member.name} from the team?`)) {
     router.delete(route('team.destroy', { member: member.id }), {
       onSuccess: () => {
-        toast.toast({
+        toast({
           title: 'Team member removed',
           description: `${member.name} has been removed from the team`,
         })
@@ -171,7 +111,7 @@ const cancelInvitation = (invitation: TeamInvitation) => {
   if (confirm(`Are you sure you want to cancel the invitation to ${invitation.name}?`)) {
     router.delete(route('team.cancel-invitation', { invitation: invitation.id }), {
       onSuccess: () => {
-        toast.toast({
+        toast({
           title: 'Invitation cancelled',
           description: `Invitation to ${invitation.name} has been cancelled`,
         })
@@ -198,7 +138,7 @@ const getRoleBadgeVariant = (role: string): "default" | "destructive" | "outline
 const getRoleDisplay = (role: string) => {
   return {
     'owner': 'Owner',
-    'company_owner': 'Company Owner',
+    'company_owner': 'Owner',
     'admin': 'Administrator',
     'manager': 'Manager',
     'member': 'Member',
@@ -242,10 +182,17 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
           </p>
         </div>
 
-        <Button v-if="userPermissions.canInviteUsers" @click="inviteDialogOpen = true" class="shadow-sm">
-          <UserPlus class="h-4 w-4 mr-2" />
-          Invite User
-        </Button>
+        <!-- Invite User Modal Link -->
+        <ModalLink
+          v-if="canInviteUsers"
+          href="/team/invite"
+          class="shadow-sm"
+        >
+          <Button>
+            <UserPlus class="h-4 w-4 mr-2" />
+            Invite User
+          </Button>
+        </ModalLink>
       </div>
 
       <!-- Team Members Card -->
@@ -267,9 +214,10 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
                   <TableHead>Name</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Joined</TableHead>
-                  <TableHead class="text-right">Actions</TableHead>
+                  <TableHead class="text-right" />
                 </TableRow>
               </TableHeader>
+
               <TableBody>
                 <TableRow v-for="member in team.data" :key="member.id" class="hover:bg-muted/50">
                   <TableCell>
@@ -293,23 +241,25 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
                   <TableCell>{{ member.joined_at }}</TableCell>
                   <TableCell class="text-right">
                     <div class="flex justify-end gap-2">
+                      <!-- Edit Member Modal Link -->
+                      <ModalLink
+                        v-if="member.role !== 'company_owner' &&member.can.edit && canUpdateRoles"
+                        :href="`/team/${member.id}/edit`">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          class="h-8 w-8 p-0">
+                          <span class="sr-only">Edit</span>
+                          <Edit class="h-4 w-4" />
+                        </Button>
+                      </ModalLink>
+
                       <Button
-                        v-if="member.can.edit && userPermissions.canUpdateRoles"
-                        @click="editMember(member)"
-                        variant="ghost"
-                        size="sm"
-                        class="h-8 w-8 p-0"
-                      >
-                        <span class="sr-only">Edit</span>
-                        <Edit class="h-4 w-4" />
-                      </Button>
-                      <Button
-                        v-if="member.can.delete && userPermissions.canRemoveUsers"
+                        v-if="member.can.delete && canRemoveUsers"
                         @click="removeMember(member)"
                         variant="ghost"
                         size="sm"
-                        class="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
-                      >
+                        class="h-8 w-8 p-0 text-destructive hover:bg-destructive/10">
                         <span class="sr-only">Remove</span>
                         <Trash2 class="h-4 w-4" />
                       </Button>
@@ -320,7 +270,9 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
             </Table>
           </div>
 
-          <div v-if="team.data.length === 0" class="py-8 text-center">
+          <div
+            v-if="team.data.length === 0"
+            class="py-8 text-center">
             <div class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-4">
               <Users class="h-6 w-6 text-muted-foreground" />
             </div>
@@ -328,10 +280,20 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
             <p class="text-muted-foreground mt-2 mb-4 max-w-md mx-auto">
               You don't have any team members yet. Start by inviting colleagues to collaborate.
             </p>
-            <Button v-if="userPermissions.canInviteUsers" @click="inviteDialogOpen = true">
-              <UserPlus class="h-4 w-4 mr-2" />
-              Invite Your First Team Member
-            </Button>
+            <ModalLink
+              v-if="canInviteUsers"
+              href="/team/invite"
+              :close-button="true"
+              :close-explicitly="false"
+              max-width="md"
+              padding-classes="p-6"
+              position="center"
+            >
+              <Button>
+                <UserPlus class="h-4 w-4 mr-2" />
+                Invite Your First Team Member
+              </Button>
+            </ModalLink>
           </div>
         </CardContent>
       </Card>
@@ -394,7 +356,7 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
       </Card>
 
       <!-- Role Permissions Card -->
-      <Card class="mt-8 bg-card text-card-foreground">
+      <Card v-if="canViewRolePermissions" class="mt-8 bg-card text-card-foreground">
         <CardHeader>
           <CardTitle class="flex items-center gap-2">
             <ShieldCheck class="h-5 w-5 text-primary" />
@@ -407,7 +369,7 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
 
         <CardContent>
           <div class="space-y-6">
-            <div v-for="role in props.roles" :key="role.id" class="space-y-2">
+            <div v-for="role in roles" :key="role.id" class="space-y-2">
               <div class="flex items-center gap-2">
                 <Badge :variant="getRoleBadgeVariant(role.name)" class="flex items-center gap-1 w-fit">
                   <component :is="getRoleIcon(role.name)" class="h-3 w-3" />
@@ -421,98 +383,5 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
         </CardContent>
       </Card>
     </div>
-
-    <!-- Invite User Dialog -->
-    <Dialog v-model:open="inviteDialogOpen" @update:open="resetForm">
-      <DialogContent class="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Invite Team Member</DialogTitle>
-          <DialogDescription>
-            Send an invitation to a new team member. They will receive an email with instructions to join.
-          </DialogDescription>
-        </DialogHeader>
-        <div class="grid gap-4 py-4">
-          <div class="grid gap-2">
-            <Label for="name">Name</Label>
-            <Input
-              id="name"
-              v-model="form.name"
-              placeholder="John Doe"
-              :class="{ 'border-destructive': formErrors.name }"
-            />
-            <p v-if="formErrors.name" class="text-xs text-destructive mt-1">{{ formErrors.name }}</p>
-          </div>
-          <div class="grid gap-2">
-            <Label for="email">Email</Label>
-            <Input
-              id="email"
-              v-model="form.email"
-              type="email"
-              placeholder="john@example.com"
-              :class="{ 'border-destructive': formErrors.email }"
-            />
-            <p v-if="formErrors.email" class="text-xs text-destructive mt-1">{{ formErrors.email }}</p>
-          </div>
-          <div class="grid gap-2">
-            <Label for="role">Role</Label>
-            <Select v-model="form.role">
-              <SelectTrigger :class="{ 'border-destructive': formErrors.role }">
-                <SelectValue placeholder="Select a role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="company_owner">Company Owner</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
-                <SelectItem value="editor">Editor</SelectItem>
-                <SelectItem value="viewer">Viewer</SelectItem>
-              </SelectContent>
-            </Select>
-            <p v-if="formErrors.role" class="text-xs text-destructive mt-1">{{ formErrors.role }}</p>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" @click="inviteDialogOpen = false">Cancel</Button>
-          <Button @click="submitInvitation">
-            <Mail class="mr-2 h-4 w-4" />
-            Send Invitation
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-
-    <!-- Edit Member Dialog -->
-    <Dialog v-model:open="editMemberDialogOpen">
-      <DialogContent class="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Edit Team Member</DialogTitle>
-          <DialogDescription>
-            Update the role for {{ selectedMember?.name }}
-          </DialogDescription>
-        </DialogHeader>
-        <div class="grid gap-4 py-4">
-          <div class="grid gap-2">
-            <Label for="edit-role">Role</Label>
-            <Select v-model="form.role">
-              <SelectTrigger :class="{ 'border-destructive': formErrors.role }">
-                <SelectValue placeholder="Select a role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="company_owner">Company Owner</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
-                <SelectItem value="editor">Editor</SelectItem>
-                <SelectItem value="viewer">Viewer</SelectItem>
-              </SelectContent>
-            </Select>
-            <p v-if="formErrors.role" class="text-xs text-destructive mt-1">{{ formErrors.role }}</p>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" @click="editMemberDialogOpen = false">Cancel</Button>
-          <Button @click="updateMember">
-            <Check class="mr-2 h-4 w-4" />
-            Update Role
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   </AppLayout>
 </template>

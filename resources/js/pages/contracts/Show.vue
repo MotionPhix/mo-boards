@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { router } from '@inertiajs/vue3'
+import { route } from 'ziggy-js'
 import {
   FileText,
   Edit,
@@ -29,12 +31,16 @@ import {
 import type { Contract } from '@/types'
 
 interface Props {
-  contract: {
-    data: Contract
-  }
+  // Accept either { contract: Contract } or { contract: { data: Contract } }
+  contract: Contract | { data: Contract }
+  processedContent?: string
 }
 
 const props = defineProps<Props>()
+const contractData = computed<Contract>(() => {
+  const c: any = props.contract as any
+  return (c && typeof c === 'object' && 'data' in c) ? c.data as Contract : c as Contract
+})
 
 const formatDate = (dateString: string): string => {
   return new Date(dateString).toLocaleDateString('en-US', {
@@ -74,18 +80,18 @@ const getStatusDotClasses = (color: string): string => {
 
 const exportContract = () => {
   // Open the contract PDF export endpoint
-  window.open(route('contracts.export-pdf', props.contract.data.uuid), '_blank')
+  window.open(route('contracts.export-pdf', contractData.value.uuid), '_blank')
 }
 
 const duplicateContract = () => {
   router.visit(route('contracts.create'), {
-    data: { duplicate_from: props.contract.data.uuid }
+    data: { duplicate_from: contractData.value.uuid }
   })
 }
 
 const cancelContract = () => {
   if (confirm('Are you sure you want to cancel this contract?')) {
-    router.patch(route('contracts.update', props.contract.data.uuid), {
+    router.patch(route('contracts.update', contractData.value.uuid), {
       status: 'cancelled'
     })
   }
@@ -93,24 +99,25 @@ const cancelContract = () => {
 
 const deleteContract = () => {
   if (confirm('Are you sure you want to delete this contract? This action cannot be undone.')) {
-    router.delete(route('contracts.destroy', props.contract.data.uuid))
+    router.delete(route('contracts.destroy', contractData.value.uuid))
   }
 }
 
 const viewDocument = () => {
-  router.visit(route('contracts.document.show', props.contract.data.uuid))
+  const el = document.getElementById('document-preview')
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 </script>
 
 <template>
   <AppLayout
-    :title="`Contract ${contract.data.contract_number}`"
+    :title="`Contract ${contractData.contract_number}`"
     :breadcrumbs="[
       { label: 'Dashboard', href: route('dashboard') },
       { label: 'Contracts', href: route('contracts.index') },
-      { label: contract.data.contract_number }
+      { label: contractData.contract_number }
     ]">
-    <div class="space-y-6">
+    <div class="space-y-6 max-w-4xl">
       <!-- Header -->
       <div class="flex flex-col space-y-4 sm:flex-row sm:justify-between sm:items-start sm:space-y-0">
         <div class="flex-1">
@@ -120,9 +127,9 @@ const viewDocument = () => {
             </div>
 
             <div>
-              <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Contract {{ contract.data.contract_number }}</h1>
+              <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Contract {{ contractData.contract_number }}</h1>
               <p class="text-sm text-gray-600 dark:text-gray-400">
-                Created {{ formatDate(contract.data.created_at) }} by {{ contract.data.created_by.name }}
+                Created {{ formatDate(contractData.created_at) }} by {{ contractData.created_by.name }}
               </p>
             </div>
           </div>
@@ -131,33 +138,24 @@ const viewDocument = () => {
         <div class="flex items-center space-x-3">
           <!-- Status Badge -->
           <span
-            :class="getStatusClasses(contract.data.status.color)"
+            :class="getStatusClasses(contractData.status.color)"
             class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
           >
             <div
-              :class="getStatusDotClasses(contract.data.status.color)"
+              :class="getStatusDotClasses(contractData.status.color)"
               class="w-2 h-2 rounded-full mr-2"
             ></div>
-            {{ contract.data.status.label }}
+            {{ contractData.status.label }}
           </span>
 
-          <!-- Action Buttons -->
+          <!-- Primary actions: keep minimal to reduce redundancy -->
           <Button
-            v-if="contract.data.actions.can_edit"
+            v-if="contractData.actions.can_edit"
             variant="outline"
-            @click="router.visit(route('contracts.edit', contract.data.uuid))"
+            @click="router.visit(route('contracts.edit', contractData.uuid))"
           >
             <Edit class="h-4 w-4 mr-2" />
-            Edit Contract
-          </Button>
-
-          <Button
-            variant="outline"
-            @click="() => router.visit(route('contracts.document.show', contract.data.uuid), {
-              preserveScroll: true
-            })">
-            <FileText class="h-4 w-4 mr-2" />
-            View Document
+            Edit
           </Button>
 
           <DropdownMenu>
@@ -167,6 +165,10 @@ const viewDocument = () => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem @click="viewDocument">
+                <FileText class="mr-2 h-4 w-4" />
+                Open Full Document
+              </DropdownMenuItem>
               <DropdownMenuItem @click="exportContract">
                 <Download class="mr-2 h-4 w-4" />
                 Export PDF
@@ -177,7 +179,7 @@ const viewDocument = () => {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                v-if="contract.data.actions.can_cancel"
+                v-if="contractData.actions.can_cancel"
                 @click="cancelContract"
                 class="text-orange-600"
               >
@@ -185,7 +187,7 @@ const viewDocument = () => {
                 Cancel Contract
               </DropdownMenuItem>
               <DropdownMenuItem
-                v-if="contract.data.actions.can_delete"
+                v-if="contractData.actions.can_delete"
                 @click="deleteContract"
                 class="text-red-600"
               >
@@ -200,6 +202,24 @@ const viewDocument = () => {
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Main Content -->
         <div class="lg:col-span-2 space-y-6">
+          <!-- Document Preview -->
+          <Card v-if="props.processedContent" id="document-preview">
+            <CardHeader>
+              <CardTitle class="flex items-center">
+                <FileText class="h-5 w-5 mr-2" />
+                Document Preview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div class="prose prose-slate dark:prose-invert max-w-none border rounded-md p-4 bg-white dark:bg-slate-900 overflow-auto">
+                <div v-html="props.processedContent"></div>
+              </div>
+              <div class="mt-3 text-xs text-muted-foreground">
+                This is a read-only preview rendered from the current contract data.
+              </div>
+            </CardContent>
+          </Card>
+
           <!-- Client Information -->
           <Card>
             <CardHeader>
@@ -212,24 +232,26 @@ const viewDocument = () => {
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label class="text-sm font-medium text-gray-500">Client Name</label>
-                  <p class="text-sm text-gray-900">{{ contract.data.client.name }}</p>
+                  <p class="text-sm text-gray-900">{{ contractData.client.name }}</p>
                 </div>
-                <div v-if="contract.data.client.company">
+                <div v-if="contractData.client.company">
                   <label class="text-sm font-medium text-gray-500">Company</label>
-                  <p class="text-sm text-gray-900">{{ contract.data.client.company }}</p>
+                  <p class="text-sm text-gray-900">{{ contractData.client.company }}</p>
                 </div>
-                <div v-if="contract.data.client.email">
+                <div v-if="contractData.client.email">
                   <label class="text-sm font-medium text-gray-500">Email</label>
-                  <p class="text-sm text-gray-900">{{ contract.data.client.email }}</p>
+                  <p class="text-sm text-gray-900">{{ contractData.client.email }}</p>
                 </div>
-                <div v-if="contract.data.client.phone">
+                <div v-if="contractData.client.phone">
                   <label class="text-sm font-medium text-gray-500">Phone</label>
-                  <p class="text-sm text-gray-900">{{ contract.data.client.phone }}</p>
+                  <p class="text-sm text-gray-900">{{ contractData.client.phone }}</p>
                 </div>
               </div>
-              <div v-if="contract.data.client.address">
+              <div v-if="contractData.client.address">
                 <label class="text-sm font-medium text-gray-500">Address</label>
-                <p class="text-sm text-gray-900">{{ contract.data.client.address }}</p>
+                <p class="text-sm text-gray-900">
+                  {{ contractData.client.address }}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -246,19 +268,19 @@ const viewDocument = () => {
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label class="text-sm font-medium text-gray-500">Start Date</label>
-                  <p class="text-sm text-gray-900">{{ formatDate(contract.data.dates.start_date) }}</p>
+                  <p class="text-sm text-gray-900">{{ formatDate(contractData.dates.start_date) }}</p>
                 </div>
                 <div>
                   <label class="text-sm font-medium text-gray-500">End Date</label>
-                  <p class="text-sm text-gray-900">{{ formatDate(contract.data.dates.end_date) }}</p>
+                  <p class="text-sm text-gray-900">{{ formatDate(contractData.dates.end_date) }}</p>
                 </div>
                 <div>
                   <label class="text-sm font-medium text-gray-500">Duration</label>
-                  <p class="text-sm text-gray-900">{{ Math.round(contract.data.dates.duration_months) }} months</p>
+                  <p class="text-sm text-gray-900">{{ Math.round(contractData.dates.duration_months) }} months</p>
                 </div>
-                <div v-if="contract.data.dates.signed_at">
+                <div v-if="contractData.dates.signed_at">
                   <label class="text-sm font-medium text-gray-500">Signed Date</label>
-                  <p class="text-sm text-gray-900">{{ formatDate(contract.data.dates.signed_at) }}</p>
+                  <p class="text-sm text-gray-900">{{ formatDate(contractData.dates.signed_at) }}</p>
                 </div>
               </div>
             </CardContent>
@@ -269,13 +291,13 @@ const viewDocument = () => {
             <CardHeader>
               <CardTitle class="flex items-center">
                 <MapPin class="h-5 w-5 mr-2" />
-                Billboards ({{ contract.data.billboards.length }})
+                Billboards ({{ contractData.billboards.length }})
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div class="space-y-4">
                 <div
-                  v-for="billboard in contract.data.billboards"
+                  v-for="billboard in contractData.billboards"
                   :key="billboard.id"
                   class="border border-gray-200 rounded-lg p-4"
                 >
@@ -304,7 +326,7 @@ const viewDocument = () => {
           </Card>
 
           <!-- Notes -->
-          <Card v-if="contract.data.notes">
+      <Card v-if="contractData.notes">
             <CardHeader>
               <CardTitle class="flex items-center">
                 <FileText class="h-5 w-5 mr-2" />
@@ -312,7 +334,7 @@ const viewDocument = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ contract.data.notes }}</p>
+        <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ contractData.notes }}</p>
             </CardContent>
           </Card>
         </div>
@@ -331,37 +353,37 @@ const viewDocument = () => {
               <div class="space-y-3">
                 <div class="flex justify-between">
                   <span class="text-sm text-gray-600">Monthly Amount:</span>
-                  <span class="text-sm font-medium text-gray-900">{{ contract.data.financial.formatted_monthly }}</span>
+                  <span class="text-sm font-medium text-gray-900">{{ contractData.financial.formatted_monthly }}</span>
                 </div>
                 <div class="flex justify-between">
                   <span class="text-sm text-gray-600">Total Value:</span>
-                  <span class="text-lg font-bold text-gray-900">{{ contract.data.financial.formatted_total }}</span>
+                  <span class="text-lg font-bold text-gray-900">{{ contractData.financial.formatted_total }}</span>
                 </div>
                 <Separator />
                 <div class="space-y-2">
                   <div class="flex justify-between text-xs">
                     <span class="text-gray-500">Payment Terms:</span>
-                    <span class="text-gray-700 capitalize">{{ contract.data.terms.payment_terms }}</span>
+                    <span class="text-gray-700 capitalize">{{ contractData.terms.payment_terms }}</span>
                   </div>
                   <div class="flex justify-between text-xs">
                     <span class="text-gray-500">Payment Days:</span>
-                    <span class="text-gray-700">{{ contract.data.terms.payment_terms_days }} days</span>
+                    <span class="text-gray-700">{{ contractData.terms.payment_terms_days }} days</span>
                   </div>
                   <div class="flex justify-between text-xs">
                     <span class="text-gray-500">Currency:</span>
-                    <span class="text-gray-700">{{ contract.data.financial.currency }}</span>
+                    <span class="text-gray-700">{{ contractData.financial.currency }}</span>
                   </div>
-                  <div v-if="contract.data.financial.currency_converted" class="flex justify-between text-xs">
+                  <div v-if="contractData.financial.currency_converted" class="flex justify-between text-xs">
                     <span class="text-gray-500">Exchange Rate:</span>
-                    <span class="text-gray-700">{{ contract.data.financial.exchange_rate }}</span>
+                    <span class="text-gray-700">{{ contractData.financial.exchange_rate }}</span>
                   </div>
-                  <div v-if="contract.data.terms.late_fee_percentage && parseFloat(contract.data.terms.late_fee_percentage) > 0" class="flex justify-between text-xs">
+                  <div v-if="contractData.terms.late_fee_percentage && parseFloat(contractData.terms.late_fee_percentage) > 0" class="flex justify-between text-xs">
                     <span class="text-gray-500">Late Fee:</span>
-                    <span class="text-gray-700">{{ contract.data.terms.late_fee_percentage }}%</span>
+                    <span class="text-gray-700">{{ contractData.terms.late_fee_percentage }}%</span>
                   </div>
-                  <div v-if="contract.data.terms.tax_rate && parseFloat(contract.data.terms.tax_rate) > 0" class="flex justify-between text-xs">
+                  <div v-if="contractData.terms.tax_rate && parseFloat(contractData.terms.tax_rate) > 0" class="flex justify-between text-xs">
                     <span class="text-gray-500">Tax Rate:</span>
-                    <span class="text-gray-700">{{ contract.data.terms.tax_rate }}%</span>
+                    <span class="text-gray-700">{{ contractData.terms.tax_rate }}%</span>
                   </div>
                 </div>
               </div>
@@ -378,60 +400,16 @@ const viewDocument = () => {
             </CardHeader>
             <CardContent>
               <div class="space-y-2">
-                <p class="text-sm font-medium text-gray-900">{{ contract.data.company.name }}</p>
+                <p class="text-sm font-medium text-gray-900">{{ contractData.company.name }}</p>
                 <div class="text-xs text-gray-500 space-y-1">
-                  <div>Currency: {{ contract.data.company.currency }}</div>
-                  <div>Timezone: {{ contract.data.company.timezone }}</div>
+                  <div>Currency: {{ contractData.company.currency }}</div>
+                  <div>Timezone: {{ contractData.company.timezone }}</div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <!-- Quick Actions -->
-          <Card>
-            <CardHeader>
-              <CardTitle class="text-sm">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent class="space-y-2">
-              <Button
-                v-if="contract.data.actions.can_edit"
-                variant="outline"
-                size="sm"
-                class="w-full justify-start"
-                @click="router.visit(route('contracts.edit', contract.data.uuid))"
-              >
-                <Edit class="h-4 w-4 mr-2" />
-                Edit Contract
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                class="w-full justify-start"
-                @click="viewDocument"
-              >
-                <FileText class="h-4 w-4 mr-2" />
-                View Document
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                class="w-full justify-start"
-                @click="exportContract"
-              >
-                <Download class="h-4 w-4 mr-2" />
-                Export PDF
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                class="w-full justify-start"
-                @click="duplicateContract"
-              >
-                <Copy class="h-4 w-4 mr-2" />
-                Duplicate Contract
-              </Button>
-            </CardContent>
-          </Card>
+          <!-- Removed Quick Actions to avoid redundancy -->
         </div>
       </div>
     </div>

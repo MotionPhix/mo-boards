@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use App\Traits\HasUuid;
+use App\Enums\BillboardStatus;
 
 class Billboard extends Model implements HasMedia
 {
@@ -34,6 +35,7 @@ class Billboard extends Model implements HasMedia
     'width' => 'decimal:2',
     'height' => 'decimal:2',
     'monthly_rate' => 'decimal:2',
+  'status' => BillboardStatus::class,
   ];
 
   protected static function booted(): void
@@ -115,10 +117,12 @@ class Billboard extends Model implements HasMedia
 
   public function getStatusColor(): string
   {
-    return match ($this->status) {
+    $status = $this->status instanceof BillboardStatus ? $this->status->value : (string) $this->status;
+    return match ($status) {
       'active' => 'success',
-      'inactive' => 'warning',
+      'available' => 'secondary',
       'maintenance' => 'destructive',
+      'removed' => 'outline',
       default => 'secondary',
     };
   }

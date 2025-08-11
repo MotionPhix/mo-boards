@@ -1,72 +1,8 @@
-<template>
-  <nav class="flex items-center justify-between" v-if="hasValidLinks">
-    <div class="flex-1 flex justify-between sm:hidden">
-      <Button
-        v-if="links.prev"
-        variant="outline"
-        @click="$inertia.visit(links.prev)"
-      >
-        Previous
-      </Button>
-      <Button
-        v-if="links.next"
-        variant="outline"
-        @click="$inertia.visit(links.next)"
-      >
-        Next
-      </Button>
-    </div>
-
-    <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-      <div>
-        <p class="text-sm text-muted-foreground">
-          Showing
-          <span class="font-medium">{{ from }}</span>
-          to
-          <span class="font-medium">{{ to }}</span>
-          of
-          <span class="font-medium">{{ total }}</span>
-          results
-        </p>
-      </div>
-
-      <div class="flex space-x-1">
-        <Button
-          v-if="links.prev"
-          variant="outline"
-          size="sm"
-          @click="$inertia.visit(links.prev)"
-        >
-          <ChevronLeft class="h-4 w-4" />
-        </Button>
-
-        <Button
-          v-for="(link, index) in paginationLinks"
-          :key="index"
-          :variant="link.active ? 'default' : 'outline'"
-          size="sm"
-          :disabled="!link.url"
-          @click="link.url && $inertia.visit(link.url)"
-          v-html="link.label"
-        />
-
-        <Button
-          v-if="links.next"
-          variant="outline"
-          size="sm"
-          @click="$inertia.visit(links.next)"
-        >
-          <ChevronRight class="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
-  </nav>
-</template>
-
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import { router } from '@inertiajs/vue3'
 
 interface PaginationLink {
   url: string | null
@@ -118,7 +54,7 @@ const paginationLinks = computed(() => {
   )
 })
 
-const links = computed(() => {
+const navLinks = computed(() => {
   if (!hasValidLinks.value) {
     return { prev: null, next: null }
   }
@@ -133,4 +69,77 @@ const links = computed(() => {
     )?.url || null,
   }
 })
+
+// Clean up labels like "&laquo; Previous" into plain text
+const normalizeLabel = (label: string) => {
+  return label
+    .replace('&laquo; ', '')
+    .replace(' &raquo;', '')
+}
 </script>
+
+<template>
+  <nav class="flex items-center justify-between" v-if="hasValidLinks">
+    <div class="flex-1 flex justify-between sm:hidden">
+      <Button
+        v-if="navLinks.prev"
+        variant="outline"
+        @click="router.visit(navLinks.prev, { preserveScroll: true })"
+      >
+        Previous
+      </Button>
+      <Button
+        v-if="navLinks.next"
+        variant="outline"
+        @click="router.visit(navLinks.next, { preserveScroll: true })"
+      >
+        Next
+      </Button>
+    </div>
+
+    <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+      <div>
+        <p class="text-sm text-muted-foreground">
+          Showing
+          <span class="font-medium">{{ from }}</span>
+          to
+          <span class="font-medium">{{ to }}</span>
+          of
+          <span class="font-medium">{{ total }}</span>
+          results
+        </p>
+      </div>
+
+      <div class="flex space-x-1">
+        <Button
+          v-if="navLinks.prev"
+          variant="outline"
+          size="sm"
+          @click="router.visit(navLinks.prev, { preserveScroll: true })"
+        >
+          <ChevronLeft class="h-4 w-4" />
+        </Button>
+
+        <Button
+          v-for="(link, index) in paginationLinks"
+          :key="index"
+          :variant="link.active ? 'default' : 'outline'"
+          size="sm"
+          :disabled="!link.url"
+          @click="link.url && router.visit(link.url, { preserveScroll: true })"
+        >
+          {{ normalizeLabel(link.label) }}
+        </Button>
+
+        <Button
+          v-if="navLinks.next"
+          variant="outline"
+          size="sm"
+          @click="router.visit(navLinks.next, { preserveScroll: true })"
+        >
+          <ChevronRight class="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  </nav>
+</template>

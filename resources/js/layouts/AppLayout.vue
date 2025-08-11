@@ -20,7 +20,7 @@ import {
 import FlashMessages from '@/components/FlashMessages.vue'
 import { Toaster } from 'vue-sonner'
 import 'vue-sonner/style.css'
-import { useDark } from '@vueuse/core'
+import { useTheme } from '@/composables/useTheme'
 
 interface Props {
   title?: string
@@ -37,7 +37,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const page = usePage()
 
-const isDark = useDark()
+const { isDark } = useTheme()
 
 // Generate breadcrumbs based on current route if not provided
 const computedBreadcrumbs = computed(() => {
@@ -97,8 +97,6 @@ const computedBreadcrumbs = computed(() => {
 
   return breadcrumbs
 })
-
-const currentCompany = computed(() => page.props.auth?.user?.current_company)
 </script>
 
 <template>
@@ -154,13 +152,6 @@ const currentCompany = computed(() => page.props.auth?.user?.current_company)
               </template>
             </BreadcrumbList>
           </Breadcrumb>
-
-          <!-- Company indicator -->
-          <!-- <div v-if="currentCompany" class="ml-auto">
-            <span class="text-xs bg-muted px-2 py-1 rounded-md font-medium">
-              {{ currentCompany.name }}
-            </span>
-          </div> -->
         </div>
       </header>
 

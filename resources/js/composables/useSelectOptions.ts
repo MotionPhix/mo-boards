@@ -34,8 +34,9 @@ export function useSelectOptions() {
   const billboardStatusOptions: ComputedRef<SelectOption[]> = computed(() =>
     createOptionsWithAll([
       { value: 'active', label: 'Active' },
-      { value: 'inactive', label: 'Inactive' },
+      { value: 'available', label: 'Available' },
       { value: 'maintenance', label: 'Maintenance' },
+      { value: 'removed', label: 'Removed' },
     ], 'All Status')
   )
 

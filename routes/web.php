@@ -53,6 +53,11 @@ Route::middleware(['auth', 'verified', 'ensure.company.access'])->group(function
     [\App\Http\Controllers\BillboardController::class, 'duplicate']
   )->name('billboards.duplicate');
 
+  Route::delete(
+    '/billboards/{billboard:uuid}/media',
+    [\App\Http\Controllers\BillboardController::class, 'deleteMedia']
+  )->name('billboards.media.delete');
+
   Route::post(
     '/billboards/bulk-update',
     [\App\Http\Controllers\BillboardController::class, 'bulkUpdate']
@@ -67,6 +72,17 @@ Route::middleware(['auth', 'verified', 'ensure.company.access'])->group(function
     '/billboards/export',
     [\App\Http\Controllers\BillboardController::class, 'export']
   )->name('billboards.export');
+
+  // Team modal routes for Inertia UI Modal (must be before resource routes)
+  Route::get(
+    '/team/invite',
+    [\App\Http\Controllers\TeamController::class, 'inviteModal']
+  )->name('team.invite-modal');
+
+  Route::get(
+    '/team/{member}/edit',
+    [\App\Http\Controllers\TeamController::class, 'editModal']
+  )->name('team.edit-modal');
 
   // Team routes
   Route::resource(

@@ -20,6 +20,7 @@ final class DatabaseSeeder extends Seeder
         $this->call([
             RolesAndPermissionsSeeder::class,
             DashboardTestDataSeeder::class,
+            SystemTemplatesSeeder::class,
         ]);
     }
 }

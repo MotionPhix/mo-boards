@@ -20,6 +20,7 @@ import {
   Circle,
   ExternalLink
 } from 'lucide-vue-next';
+import { useStorage } from '@vueuse/core';
 
 interface Contract {
   id: number;
@@ -52,6 +53,8 @@ interface Props {
 const props = defineProps<Props>();
 
 const zoom = ref(1.0);
+
+const viewMode = useStorage('document_view', 'preview');
 
 // Return the content directly for preview since CKEditor already uses inline styles
 const processedContent = computed(() => {
@@ -250,12 +253,13 @@ const downloadTemplate = () => {
 
           <!-- Main Content Area -->
           <div class="lg:col-span-3">
-            <Tabs default-value="preview" class="w-full">
+            <Tabs v-model="viewMode" class="w-full">
               <TabsList class="grid w-full grid-cols-2 max-w-sm mx-auto">
                 <TabsTrigger value="preview">
                   <FileText class="w-4 h-4 mr-2" />
                   Document Preview
                 </TabsTrigger>
+
                 <TabsTrigger value="contracts">
                   <Users class="w-4 h-4 mr-2" />
                   Contracts ({{ template.contracts?.length || 0 }})

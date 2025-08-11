@@ -4,24 +4,30 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
+use App\Enums\BillboardStatus;
 
 class UpdateBillboardRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('update', $this->billboard);
+    $billboard = request()->route('billboard');
+    $user = Auth::user();
+    return (bool) ($user?->can('update', $billboard) ?? false);
     }
 
     public function rules(): array
     {
+    $billboard = request()->route('billboard');
+    $user = Auth::user();
         return [
             'name' => [
                 'required',
                 'string',
                 'max:255',
                 Rule::unique('billboards')
-                    ->where('company_id', $this->user()->current_company_id)
-                    ->ignore($this->billboard->id)
+                    ->where('company_id', $user?->current_company_id)
+                    ->ignore($billboard?->id)
             ],
             'location' => 'required|string|max:500',
             'latitude' => 'nullable|numeric|between:-90,90',
@@ -31,9 +37,22 @@ class UpdateBillboardRequest extends FormRequest
             'monthly_rate' => 'nullable|numeric|min:0|max:999999.99',
             'status' => [
                 'required',
-                Rule::in(['active', 'inactive', 'maintenance'])
+                Rule::in(BillboardStatus::values()),
+                // If current status is maintenance, only company_owner can change it
+                function (string $attribute, mixed $value, \Closure $fail) use ($billboard, $user) {
+                    if (!$billboard) return;
+                    $current = $billboard->status instanceof BillboardStatus ? $billboard->status->value : (string) $billboard->status;
+                    $next = is_string($value) ? $value : (string) $value;
+                    if ($current === BillboardStatus::MAINTENANCE->value && $next !== BillboardStatus::MAINTENANCE->value) {
+                        if (!($user?->hasRole('company_owner'))) {
+                            $fail('Only a company owner can change status while in maintenance.');
+                        }
+                    }
+                }
             ],
             'description' => 'nullable|string|max:1000',
+            'images' => 'nullable|array',
+            'images.*' => 'file|image|mimes:jpeg,png|max:5120',
         ];
     }
 

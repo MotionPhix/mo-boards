@@ -50,6 +50,16 @@ class RolesAndPermissionsSeeder extends Seeder
       'contracts.manage_payments',    // Manage contract payments
       'contracts.view_financial',     // View contract financial details
 
+      // Contract template management - granular permissions
+      'contract_templates.view_any',  // View contract template listings
+      'contract_templates.view',      // View specific contract template details
+      'contract_templates.create',    // Create new contract templates
+      'contract_templates.update',    // Edit contract template information
+      'contract_templates.delete',    // Delete contract templates
+      'contract_templates.duplicate', // Duplicate contract templates
+      'contract_templates.create_premium', // Create premium system templates (super admin only)
+      'contract_templates.manage_categories', // Manage template categories
+
       // Team/User management - granular permissions
       'team.view_any',                // View team member listings
       'team.view',                    // View specific team member details
@@ -133,6 +143,15 @@ class RolesAndPermissionsSeeder extends Seeder
       'contracts.manage_payments',
       'contracts.view_financial',
 
+      // Full contract template access
+      'contract_templates.view_any',
+      'contract_templates.view',
+      'contract_templates.create',
+      'contract_templates.update',
+      'contract_templates.delete',
+      'contract_templates.duplicate',
+      'contract_templates.manage_categories',
+
       // Full team management
       'team.view_any',
       'team.view',
@@ -194,6 +213,14 @@ class RolesAndPermissionsSeeder extends Seeder
       'contracts.update',
       'contracts.view_financial',
 
+      // Contract template management (limited)
+      'contract_templates.view_any',
+      'contract_templates.view',
+      'contract_templates.create',
+      'contract_templates.update',
+      'contract_templates.duplicate',
+      'contract_templates.manage_categories',
+
       // Team management (limited)
       'team.view_any',
       'team.view',
@@ -237,6 +264,13 @@ class RolesAndPermissionsSeeder extends Seeder
       'contracts.create',
       'contracts.update',
 
+      // Contract template editing
+      'contract_templates.view_any',
+      'contract_templates.view',
+      'contract_templates.create',
+      'contract_templates.update',
+      'contract_templates.duplicate',
+
       // Team viewing
       'team.view_any',
       'team.view',
@@ -264,6 +298,10 @@ class RolesAndPermissionsSeeder extends Seeder
       // Contract viewing only
       'contracts.view_any',
       'contracts.view',
+
+      // Contract template viewing only
+      'contract_templates.view_any',
+      'contract_templates.view',
 
       // Team viewing only
       'team.view_any',

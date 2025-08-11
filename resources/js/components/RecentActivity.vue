@@ -58,10 +58,12 @@ const getStatusVariant = (status: string) => {
   switch (status) {
     case 'active':
       return 'default'
-    case 'inactive':
+    case 'available':
       return 'secondary'
     case 'maintenance':
       return 'destructive'
+    case 'removed':
+      return 'outline'
     default:
       return 'outline'
   }

@@ -80,8 +80,8 @@
 	background: hsl(0, 0%, 100%);
 	box-shadow: 0 2px 3px hsla(0, 0%, 0%, 0.078);
 	flex: 1 1 auto;
-	/* margin-left: 72px; */
-	/* margin-right: 72px; */
+	margin-left: 72px;
+	margin-right: 72px;
 }
 
 .ck-content h3.category {

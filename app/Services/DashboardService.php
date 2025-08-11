@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Models\Billboard;
 use App\Models\Company;
 use App\Models\Contract;
+use App\Models\User;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -14,19 +15,23 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardService
 {
-    public function getDashboardData(Company $company): array
+    public function getDashboardData(Company $company, User $user = null, array $context = []): array
     {
+        $canViewFinancial = $context['can_view_financial'] ?? false;
+        $canViewAdvancedAnalytics = $context['can_view_advanced_analytics'] ?? false;
+        $userRole = $context['user_role'] ?? 'viewer';
+
         return [
-            'stats' => $this->getStats($company),
-            'charts' => $this->getChartData($company),
-            'recent_activities' => $this->getRecentActivities($company),
-            'top_performing_billboards' => $this->getTopPerformingBillboards($company),
+            'stats' => $this->getStats($company, $canViewFinancial),
+            'charts' => $canViewAdvancedAnalytics ? $this->getChartData($company, $canViewFinancial) : [],
+            'recent_activities' => $this->getRecentActivities($company, $canViewFinancial, $userRole),
+            'top_performing_billboards' => $canViewAdvancedAnalytics ? $this->getTopPerformingBillboards($company, $canViewFinancial) : [],
             'upcoming_expirations' => $this->getUpcomingExpirations($company),
-            'revenue_breakdown' => $this->getRevenueBreakdown($company),
+            'revenue_breakdown' => $canViewFinancial ? $this->getRevenueBreakdown($company) : [],
         ];
     }
 
-    private function getStats(Company $company): array
+    private function getStats(Company $company, bool $canViewFinancial = false): array
     {
         $currentMonth = now()->startOfMonth();
         $lastMonth = now()->subMonth()->startOfMonth();
@@ -34,18 +39,20 @@ class DashboardService
         // Current stats
         $totalBillboards = $company->billboards()->count();
         $activeContracts = $company->contracts()->active()->count();
-        $monthlyRevenue = $this->getMonthlyRevenue($company, $currentMonth);
         $occupancyRate = $this->calculateOccupancyRate($company);
 
+        // Revenue stats only for authorized users
+        $monthlyRevenue = $canViewFinancial ? $this->getMonthlyRevenue($company, $currentMonth) : 0;
+        $lastMonthRevenue = $canViewFinancial ? $this->getMonthlyRevenue($company, $lastMonth) : 0;
+
         // Previous month stats for comparison
-        $lastMonthRevenue = $this->getMonthlyRevenue($company, $lastMonth);
         $lastMonthActiveContracts = $company->contracts()
             ->where('status', 'active')
             ->whereDate('created_at', '>=', $lastMonth)
             ->whereDate('created_at', '<', $currentMonth)
             ->count();
 
-        return [
+        $stats = [
             'total_billboards' => [
                 'value' => $totalBillboards,
                 'change' => $this->calculatePercentageChange(
@@ -57,25 +64,37 @@ class DashboardService
                 'value' => $activeContracts,
                 'change' => $this->calculatePercentageChange($activeContracts, $lastMonthActiveContracts),
             ],
-            'monthly_revenue' => [
-                'value' => $monthlyRevenue,
-                'change' => $this->calculatePercentageChange($monthlyRevenue, $lastMonthRevenue),
-            ],
             'occupancy_rate' => [
                 'value' => $occupancyRate,
                 'change' => $this->calculateOccupancyRateChange($company),
             ],
         ];
+
+        // Add revenue stats only if user can view financial data
+        if ($canViewFinancial) {
+            $stats['monthly_revenue'] = [
+                'value' => $monthlyRevenue,
+                'change' => $this->calculatePercentageChange($monthlyRevenue, $lastMonthRevenue),
+            ];
+        }
+
+        return $stats;
     }
 
-    private function getChartData(Company $company): array
+    private function getChartData(Company $company, bool $canViewFinancial = false): array
     {
-        return [
-            'revenue_trend' => $this->getRevenueTrendData($company),
+        $chartData = [
             'billboard_status' => $this->getBillboardStatusData($company),
             'contract_status' => $this->getContractStatusData($company),
-            'monthly_performance' => $this->getMonthlyPerformanceData($company),
         ];
+
+        // Add financial charts only for authorized users
+        if ($canViewFinancial) {
+            $chartData['revenue_trend'] = $this->getRevenueTrendData($company);
+            $chartData['monthly_performance'] = $this->getMonthlyPerformanceData($company);
+        }
+
+        return $chartData;
     }
 
     private function getRevenueTrendData(Company $company): array
@@ -176,28 +195,40 @@ class DashboardService
         ];
     }
 
-    private function getRecentActivities(Company $company): Collection
+    private function getRecentActivities(Company $company, bool $canViewFinancial = false, string $userRole = 'viewer'): Collection
     {
-        return $company->contracts()
+        $query = $company->contracts()
             ->with(['billboards', 'createdBy'])
             ->latest()
-            ->limit(10)
-            ->get()
-            ->map(function ($contract) {
-                return [
+            ->limit(10);
+
+        // Viewers might see fewer activities
+        if ($userRole === 'viewer') {
+            $query->limit(5);
+        }
+
+        return $query->get()
+            ->map(function ($contract) use ($canViewFinancial) {
+                $activity = [
                     'id' => $contract->id,
                     'type' => 'contract',
                     'title' => "New contract with {$contract->client_name}",
                     'description' => "Contract {$contract->contract_number} created",
-                    'amount' => $contract->total_amount,
                     'billboards_count' => $contract->billboards->count(),
                     'created_at' => $contract->created_at,
                     'created_by' => $contract->createdBy->name,
                 ];
+
+                // Only include financial data if user can view it
+                if ($canViewFinancial) {
+                    $activity['amount'] = $contract->total_amount;
+                }
+
+                return $activity;
             });
     }
 
-    private function getTopPerformingBillboards(Company $company): Collection
+    private function getTopPerformingBillboards(Company $company, bool $canViewFinancial = false): Collection
     {
         return $company->billboards()
             ->withCount(['contracts as active_contracts_count' => function ($query) {
@@ -209,21 +240,25 @@ class DashboardService
             ->orderBy('active_contracts_count', 'desc')
             ->limit(5)
             ->get()
-            ->map(function ($billboard) {
-                $totalRevenue = $billboard->contracts
-                    ->where('status', 'active')
-                    ->sum('total_amount');
-
-                return [
+            ->map(function ($billboard) use ($canViewFinancial) {
+                $data = [
                     'id' => $billboard->id,
                     'name' => $billboard->name,
                     'code' => $billboard->code,
                     'location' => $billboard->location,
                     'monthly_rate' => $billboard->monthly_rate,
                     'active_contracts' => $billboard->active_contracts_count,
-                    'total_revenue' => $totalRevenue,
                     'status' => $billboard->status,
                 ];
+
+                // Only include revenue data if user can view financial information
+                if ($canViewFinancial) {
+                    $data['total_revenue'] = $billboard->contracts
+                        ->where('status', 'active')
+                        ->sum('total_amount');
+                }
+
+                return $data;
             });
     }
 
@@ -260,15 +295,15 @@ class DashboardService
             ->join('contracts', 'contract_billboards.contract_id', '=', 'contracts.id')
             ->where('contracts.status', 'active')
             ->select(
-                'billboards.width', 
-                'billboards.height', 
+                'billboards.width',
+                'billboards.height',
                 DB::raw('SUM(contract_billboards.rate) as revenue')
             )
             ->groupBy('billboards.width', 'billboards.height')
             ->get()
             ->mapWithKeys(function ($item) {
                 $dimension = $item->width . 'm x ' . $item->height . 'm';
-                return [$dimension => $item->revenue];
+                return [$dimension => (float) $item->revenue];
             })
             ->toArray();
 
@@ -281,11 +316,13 @@ class DashboardService
 
     private function getMonthlyRevenue(Company $company, CarbonInterface $month): float
     {
-        return $company->contracts()
+        $revenue = $company->contracts()
             ->where('status', 'active')
             ->where('start_date', '<=', $month->endOfMonth())
             ->where('end_date', '>=', $month->startOfMonth())
             ->sum('monthly_amount');
+
+        return (float) $revenue;
     }
 
     private function calculateOccupancyRate(Company $company): float

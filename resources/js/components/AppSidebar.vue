@@ -29,7 +29,25 @@ const props = withDefaults(defineProps<SidebarProps>(), {
   collapsible: 'icon',
 })
 
-const page = usePage()
+type AuthPageProps = {
+  auth?: {
+    user?: {
+      id: number
+      name: string
+      email: string
+      avatar: string
+      abilities?: Record<string, boolean>
+      companies?: any[]
+      current_company?: {
+        id: number
+        name: string
+        subscription_plan?: string
+      }
+    }
+  }
+}
+
+const page = usePage<AuthPageProps>()
 
 // Get current route name for active state detection
 const currentRoute = computed(() => page.url)
@@ -44,54 +62,86 @@ const isActiveRoute = (path: string, includeSubpaths = true) => {
 
 // Get user and companies data from Inertia shared props
 const user = computed(() => page.props.auth?.user)
+const abilities = computed(() => page.props.auth?.user?.abilities || {})
 const companies = computed(() => user.value?.companies || [])
 const currentCompany = computed(() => user.value?.current_company)
 
-// Navigation data - simplified structure without dropdowns
-const navMain = computed(() => [
-  {
-    title: 'Dashboard',
-    url: route('dashboard'),
-    icon: LayoutDashboard,
-    isActive: isActiveRoute('/dashboard', false),
-  },
-  {
-    title: 'Billboards',
-    url: route('billboards.index'),
-    icon: Billboard,
-    isActive: isActiveRoute('/billboards'),
-  },
-  {
-    title: 'Contracts',
-    url: route('contracts.index'),
-    icon: FileText,
-    isActive: isActiveRoute('/contracts'),
-  },
-  {
-    title: 'Templates',
-    url: route('contract-templates.index'),
-    icon: LibraryBig,
-    isActive: isActiveRoute('/contract-templates') || isActiveRoute('/template-marketplace'),
-  },
-  {
-    title: 'Team',
-    url: route('team.index'),
-    icon: Users,
-    isActive: isActiveRoute('/team'),
-  },
-  {
-    title: 'Companies',
-    url: route('companies.index'),
-    icon: Building,
-    isActive: isActiveRoute('/companies'),
-  },
-  {
-    title: 'Settings',
-    url: route('companies.settings'),
-    icon: Settings,
-    isActive: isActiveRoute('/companies/settings'),
-  },
-])
+// Narrowed user for NavUser component to satisfy its prop contract
+const navUser = computed(() => {
+  const u = user.value as any
+  if (!u) return undefined
+  const cc = u.current_company || undefined
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    avatar: u.avatar || '',
+    current_company: cc
+      ? {
+          name: cc.name,
+          subscription_plan: cc.subscription_plan || 'Free',
+        }
+      : undefined,
+  }
+})
+
+// Navigation data - permission-aware
+const navMain = computed(() => {
+  const items = [
+    {
+      title: 'Dashboard',
+      url: route('dashboard'),
+      icon: LayoutDashboard,
+      isActive: isActiveRoute('/dashboard', false),
+      show: true, // All authenticated users see dashboard
+    },
+    {
+      title: 'Billboards',
+      url: route('billboards.index'),
+      icon: Billboard,
+      isActive: isActiveRoute('/billboards'),
+      show: !!abilities.value.can_view_billboards,
+    },
+    {
+      title: 'Contracts',
+      url: route('contracts.index'),
+      icon: FileText,
+      isActive: isActiveRoute('/contracts'),
+      show: !!abilities.value.can_view_contracts,
+    },
+    {
+      title: 'Templates',
+      url: route('contract-templates.index'),
+      icon: LibraryBig,
+      isActive: isActiveRoute('/contract-templates') || isActiveRoute('/template-marketplace'),
+      show: !!abilities.value.can_view_contract_templates,
+    },
+    {
+      title: 'Team',
+      url: route('team.index'),
+      icon: Users,
+      isActive: isActiveRoute('/team'),
+      show: !!abilities.value.can_view_team,
+    },
+    {
+      title: 'Companies',
+      url: route('companies.index'),
+      icon: Building,
+      isActive: isActiveRoute('/companies'),
+      // Optionally restrict this to super admins only by replacing with abilities.value.is_super_admin
+      show: !!abilities.value.can_view_companies,
+    },
+    {
+      title: 'Settings',
+      url: route('companies.settings'),
+      icon: Settings,
+      isActive: isActiveRoute('/companies/settings'),
+      show: !!abilities.value.can_manage_company_settings || !!abilities.value.can_view_company_billing,
+    },
+  ]
+
+  return items.filter((i) => i.show)
+})
 
 // Teams data for the TeamSwitcher
 const teams = computed(() =>
@@ -107,7 +157,10 @@ const teams = computed(() =>
 </script>
 
 <template>
-  <Sidebar v-bind="props" variant="floating" collapsible="offcanvas">
+  <Sidebar
+    v-bind="props"
+    variant="floating"
+    collapsible="offcanvas">
     <SidebarHeader>
       <TeamSwitcher :teams="teams" />
     </SidebarHeader>
@@ -115,7 +168,7 @@ const teams = computed(() =>
       <NavMain :items="navMain" />
     </SidebarContent>
     <SidebarFooter>
-      <NavUser :user="user" />
+      <NavUser v-if="navUser" :user="navUser" />
     </SidebarFooter>
     <SidebarRail />
   </Sidebar>

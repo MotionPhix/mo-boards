@@ -26,6 +26,7 @@ class ContractResource extends JsonResource
             'id' => $this->id,
             'uuid' => $this->uuid,
             'contract_number' => $this->contract_number,
+            'design' => $this->design,
             'status' => [
                 'current' => $this->status,
                 'label' => ucfirst($this->status),

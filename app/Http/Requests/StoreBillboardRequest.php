@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use App\Enums\BillboardStatus;
 
 class StoreBillboardRequest extends FormRequest
 {
@@ -21,8 +22,10 @@ class StoreBillboardRequest extends FormRequest
       'width' => 'nullable|numeric|min:0|max:1000',
       'height' => 'nullable|numeric|min:0|max:1000',
       'monthly_rate' => 'nullable|numeric|min:0',
-      'status' => 'required|in:active,inactive,maintenance',
+  'status' => 'required|in:' . implode(',', BillboardStatus::values()),
       'description' => 'nullable|string|max:1000',
+  'images' => 'nullable|array',
+  'images.*' => 'file|image|mimes:jpeg,png|max:5120',
     ];
   }
 }

@@ -503,7 +503,7 @@
   </AppLayout>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import { Building2, FileText, MapPin, Settings, CreditCard, Bell, Share2, ImageIcon, Loader2 } from 'lucide-vue-next';
@@ -523,7 +523,6 @@ const props = defineProps({
 
 const logoInput = ref(null);
 const logoPreview = ref(null);
-const currentLogo = ref(props.company?.logo_path || null);
 
 const form = useForm({
   // Company information

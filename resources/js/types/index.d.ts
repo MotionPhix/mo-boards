@@ -7,7 +7,7 @@ export interface Auth {
 }
 
 export interface BreadcrumbItem {
-    title: string;
+    label: string;
     href: string;
 }
 
@@ -88,7 +88,7 @@ export interface Billboard {
     annual_rate: number
   }
   status: {
-    current: 'active' | 'inactive' | 'maintenance'
+  current: 'active' | 'available' | 'maintenance' | 'removed'
     label: string
     color: string
     can_edit: boolean
@@ -227,9 +227,19 @@ export interface ContractTemplate {
   formatted_price?: string
   is_active: boolean
   is_premium: boolean
+  is_system_template?: boolean
   category?: string
   tags?: string[]
-  company?: Company
+  default_terms?: any
+  custom_fields?: any
+  features?: any
+  preview_image?: string
+  company?: {
+    id: number
+    uuid: string
+    name: string
+  }
+  contracts_count?: number
   created_at: string
   updated_at: string
   actions: {
@@ -239,6 +249,10 @@ export interface ContractTemplate {
     can_duplicate: boolean
     can_purchase: boolean
   }
+}
+
+export interface ContractTemplateWrapped {
+  data: ContractTemplate
 }
 
 export interface TeamMember {

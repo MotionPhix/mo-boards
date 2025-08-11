@@ -1,4 +1,4 @@
-import '../css/style.css';
+import '../css/ckeditor.css';
 import '../css/app.css';
 
 import { createInertiaApp } from '@inertiajs/vue3';
@@ -6,26 +6,28 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { DefineComponent } from 'vue';
 import { createApp } from 'vue';
 import { ZiggyVue } from 'ziggy-js';
-import { initializeTheme } from './composables/useAppearance';
+import { initializeTheme } from './composables/useTheme';
 import VueApexCharts from 'vue3-apexcharts';
 import { Modal, ModalLink, renderApp, putConfig } from '@inertiaui/modal-vue';
 
 // Configure default modal settings
 putConfig({
+    type: 'modal',
+    navigate: false,
     modal: {
         closeButton: true,
         closeExplicitly: true,
         maxWidth: '2xl',
-        paddingClasses: 'p-6',
-        panelClasses: 'bg-white rounded-lg shadow-xl',
+        paddingClasses: 'p-0',
+        panelClasses: 'bg-background rounded-lg shadow-lg border',
         position: 'center',
     },
     slideover: {
         closeButton: true,
         closeExplicitly: false,
         maxWidth: 'md',
-        paddingClasses: 'p-6',
-        panelClasses: 'bg-white min-h-screen',
+        paddingClasses: 'p-0',
+        panelClasses: 'bg-background min-h-screen border-l',
         position: 'right',
     },
 });

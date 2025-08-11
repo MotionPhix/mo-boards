@@ -35,7 +35,7 @@ interface Props {
       total: number
     }
   }
-  filters: {
+  filters?: {
     search?: string
     status?: string
   }
@@ -50,8 +50,8 @@ interface Props {
 const props = defineProps<Props>()
 
 const searchForm = reactive({
-  search: props.filters.search || '',
-  status: props.filters.status || '',
+  search: props.filters?.search || '',
+  status: props.filters?.status || '',
 })
 
 const debouncedSearch = debounce(() => {
@@ -140,11 +140,14 @@ const exportPdf = (contract: Contract) => {
       { label: 'Contracts' }
     ]"
   >
-    <div class="space-y-6">
+    <div class="space-y-6 max-w-4xl">
       <!-- Header -->
       <div class="flex flex-col space-y-4 sm:flex-row sm:justify-between sm:items-start sm:space-y-0">
         <div class="flex-1">
-          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Contract Management</h1>
+          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+            Contract Management
+          </h1>
+
           <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
             Manage your advertising contracts and agreements
           </p>

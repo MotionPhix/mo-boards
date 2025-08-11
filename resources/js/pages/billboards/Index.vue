@@ -1,3 +1,173 @@
+<script setup lang="ts">
+import { reactive, computed } from 'vue'
+import { router, usePage } from '@inertiajs/vue3'
+import { debounce } from 'lodash'
+import { route } from 'ziggy-js'
+import { Plus, Building2, Search, X } from 'lucide-vue-next'
+import AppLayout from '@/layouts/AppLayout.vue'
+import CompanySelector from '@/components/CompanySelector.vue'
+import BillboardsTable from '@/components/BillboardsTable.vue'
+import EmptyState from '@/components/EmptyState.vue'
+import Pagination from '@/components/Pagination.vue'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import { useSelectOptions } from '@/composables/useSelectOptions'
+import type { Billboard, Company } from '@/types'
+
+interface Props {
+  billboards: {
+    data: Billboard[]
+    links: any[]
+    meta: {
+      current_page: number
+      from: number
+      last_page: number
+      links: any[]
+      path: string
+      per_page: number
+      to: number
+      total: number
+    }
+    current_page: number
+    last_page: number
+    per_page: number
+    total: number
+  }
+  company: Company
+  filters: {
+    search?: string
+    status?: string
+  }
+}
+
+const props = defineProps<Props>()
+
+const page = usePage()
+
+const { billboardStatusOptions, toBackendValue, toFrontendValue } = useSelectOptions()
+
+const searchForm = reactive({
+  search: props.filters.search || '',
+  status: toFrontendValue(props.filters.status),
+  sort_by: (props.filters as any).sort_by || 'created_at',
+  sort_direction: ((props.filters as any).sort_direction || 'desc') as 'asc' | 'desc',
+})
+
+const typedSortDirection = computed(() => searchForm.sort_direction as 'asc' | 'desc')
+
+const debouncedSearch = debounce(() => {
+  const formData = {
+    search: searchForm.search,
+    status: toBackendValue(searchForm.status),
+  sort_by: searchForm.sort_by,
+  sort_direction: searchForm.sort_direction,
+  }
+
+  router.get(route('billboards.index'), formData, {
+    preserveState: true,
+  preserveScroll: true,
+    replace: true,
+  })
+}, 300)
+
+const updateStatus = (value: any) => {
+  const stringValue = value ? String(value) : ''
+  searchForm.status = stringValue
+
+  const formData = {
+    search: searchForm.search,
+    status: toBackendValue(stringValue),
+  sort_by: searchForm.sort_by,
+  sort_direction: searchForm.sort_direction,
+  }
+
+  router.get(route('billboards.index'), formData, {
+    preserveState: true,
+  preserveScroll: true,
+    replace: true,
+  })
+}
+
+const editBillboard = (billboard: Billboard) => {
+  router.visit(route('billboards.edit', billboard.uuid))
+}
+
+const viewBillboard = (billboard: Billboard) => {
+  router.visit(route('billboards.show', billboard.uuid))
+}
+
+const deleteBillboard = (billboard: Billboard) => {
+  if (confirm('Are you sure you want to delete this billboard?')) {
+    router.delete(route('billboards.destroy', billboard.uuid))
+  }
+}
+
+const getEmptyStateDescription = () => {
+  const hasFilters = searchForm.search || searchForm.status
+
+  if (hasFilters) {
+    return "No billboards match your current search criteria. Try adjusting your filters or search terms."
+  }
+
+  return "Start building your billboard inventory by adding your first location. You can manage pricing, status, and track occupancy for each billboard."
+}
+
+const hasActiveFilters = computed(() => {
+  return !!searchForm.search || !!searchForm.status
+})
+
+const clearFilters = () => {
+  searchForm.search = ''
+  searchForm.status = ''
+
+  router.get(route('billboards.index'), {}, {
+    preserveState: true,
+  preserveScroll: true,
+    replace: true,
+  })
+}
+
+const getActiveCount = () => {
+  return props.billboards.data.filter((billboard: Billboard) => billboard.status.current === 'active').length
+}
+
+const getOccupiedCount = () => {
+  return props.billboards.data.filter((billboard: Billboard) => billboard.contracts.is_occupied).length
+}
+
+const onSort = (field: string) => {
+  // Toggle if same field, else set asc by default
+  if (searchForm.sort_by === field) {
+    searchForm.sort_direction = searchForm.sort_direction === 'asc' ? 'desc' : 'asc'
+  } else {
+    searchForm.sort_by = field
+    searchForm.sort_direction = 'asc'
+  }
+
+  const formData = {
+    search: searchForm.search,
+    status: toBackendValue(searchForm.status),
+    sort_by: searchForm.sort_by,
+    sort_direction: searchForm.sort_direction,
+  }
+
+  router.get(route('billboards.index'), formData, {
+    preserveState: true,
+    preserveScroll: true,
+    replace: true,
+  })
+}
+</script>
+
 <template>
   <AppLayout title="Billboards">
     <div class="max-w-4xl w-full">
@@ -105,9 +275,12 @@
             <div v-if="billboards.data.length > 0">
               <BillboardsTable
                 :billboards="billboards.data"
+                :sort-by="searchForm.sort_by"
+                :sort-direction="typedSortDirection"
                 @edit="editBillboard"
                 @view="viewBillboard"
                 @delete="deleteBillboard"
+                @sort="onSort"
               />
             </div>
             <div v-else class="p-6">
@@ -135,143 +308,13 @@
 
         <!-- Pagination -->
         <div v-if="billboards.data.length > 0" class="mt-6">
-          <Pagination :links="billboards.links" />
+          <Pagination
+            :links="billboards"
+            :from="billboards.meta.from"
+            :to="billboards.meta.to"
+            :total="billboards.meta.total"
+          />
         </div>
     </div>
   </AppLayout>
 </template>
-
-<script setup lang="ts">
-import { reactive, computed } from 'vue'
-import { router, usePage } from '@inertiajs/vue3'
-import { debounce } from 'lodash'
-import { Plus, Building2, Search, X } from 'lucide-vue-next'
-import AppLayout from '@/layouts/AppLayout.vue'
-import CompanySelector from '@/components/CompanySelector.vue'
-import BillboardsTable from '@/components/BillboardsTable.vue'
-import EmptyState from '@/components/EmptyState.vue'
-import Pagination from '@/components/Pagination.vue'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
-import { useSelectOptions } from '@/composables/useSelectOptions'
-import type { Billboard, Company } from '@/types'
-
-interface Props {
-  billboards: {
-    data: Billboard[]
-    links: any[]
-    meta: {
-      current_page: number
-      from: number
-      last_page: number
-      links: any[]
-      path: string
-      per_page: number
-      to: number
-      total: number
-    }
-    current_page: number
-    last_page: number
-    per_page: number
-    total: number
-  }
-  company: Company
-  filters: {
-    search?: string
-    status?: string
-  }
-}
-
-const props = defineProps<Props>()
-
-const page = usePage()
-
-const { billboardStatusOptions, toBackendValue, toFrontendValue } = useSelectOptions()
-
-const searchForm = reactive({
-  search: props.filters.search || '',
-  status: toFrontendValue(props.filters.status),
-})
-
-const debouncedSearch = debounce(() => {
-  const formData = {
-    search: searchForm.search,
-    status: toBackendValue(searchForm.status),
-  }
-
-  router.get(route('billboards.index'), formData, {
-    preserveState: true,
-    replace: true,
-  })
-}, 300)
-
-const updateStatus = (value: any) => {
-  const stringValue = value ? String(value) : ''
-  searchForm.status = stringValue
-
-  const formData = {
-    search: searchForm.search,
-    status: toBackendValue(stringValue),
-  }
-
-  router.get(route('billboards.index'), formData, {
-    preserveState: true,
-    replace: true,
-  })
-}
-
-const editBillboard = (billboard: Billboard) => {
-  router.visit(route('billboards.edit', billboard.uuid))
-}
-
-const viewBillboard = (billboard: Billboard) => {
-  router.visit(route('billboards.show', billboard.uuid))
-}
-
-const deleteBillboard = (billboard: Billboard) => {
-  if (confirm('Are you sure you want to delete this billboard?')) {
-    router.delete(route('billboards.destroy', billboard.uuid))
-  }
-}
-
-const getEmptyStateDescription = () => {
-  const hasFilters = searchForm.search || searchForm.status
-
-  if (hasFilters) {
-    return "No billboards match your current search criteria. Try adjusting your filters or search terms."
-  }
-
-  return "Start building your billboard inventory by adding your first location. You can manage pricing, status, and track occupancy for each billboard."
-}
-
-const hasActiveFilters = computed(() => {
-  return !!searchForm.search || !!searchForm.status
-})
-
-const clearFilters = () => {
-  searchForm.search = ''
-  searchForm.status = ''
-
-  router.get(route('billboards.index'), {}, {
-    preserveState: true,
-    replace: true,
-  })
-}
-
-const getActiveCount = () => {
-  return props.billboards.data.filter((billboard: Billboard) => billboard.status.current === 'active').length
-}
-
-const getOccupiedCount = () => {
-  return props.billboards.data.filter((billboard: Billboard) => billboard.contracts.is_occupied).length
-}
-</script>

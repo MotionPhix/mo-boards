@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onUnmounted, ref, computed, watch } from 'vue';
-import { Head, Link, useForm, router } from '@inertiajs/vue3'
+import { Head, Link, useForm } from '@inertiajs/vue3'
 import { Loader2, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-vue-next'
 import GuestLayout from '@/layouts/AuthLayout.vue'
 import { Button } from '@/components/ui/button'

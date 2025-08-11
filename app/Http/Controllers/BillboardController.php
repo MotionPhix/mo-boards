@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateBillboardRequest;
 use App\Http\Resources\BillboardResource;
 use App\Models\Billboard;
 use App\Services\BillboardService;
+use App\Enums\BillboardStatus;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -82,7 +83,7 @@ final class BillboardController extends Controller
     ]);
   }
 
-  public function create(): Response
+  public function create(): Response|RedirectResponse
   {
     $this->authorize('create', Billboard::class);
 
@@ -99,6 +100,7 @@ final class BillboardController extends Controller
         'id' => $company->id,
         'name' => $company->name,
       ],
+  'statuses' => BillboardStatus::options(),
     ]);
   }
 
@@ -114,7 +116,16 @@ final class BillboardController extends Controller
         ->with('error', 'Please select a company first.');
     }
 
-    $billboard = $company->billboards()->create($request->validated());
+  // Exclude 'images' from mass assignment; files are handled via Media Library
+  $data = $request->safe()->except(['images']);
+  $billboard = $company->billboards()->create($data);
+
+    // Attach uploaded images (if any)
+    if (request()->hasFile('images')) {
+      foreach ((array) request()->file('images') as $image) {
+        $billboard->addMedia($image)->toMediaCollection('images');
+      }
+    }
 
     return redirect()->route('billboards.index')
       ->with('success', "Billboard '{$billboard->name}' created successfully!");
@@ -124,7 +135,7 @@ final class BillboardController extends Controller
   {
     $this->authorize('view', $billboard);
 
-    $billboard->load(['media', 'contracts' => function ($query) {
+  $billboard->load(['company','media', 'contracts' => function ($query) {
       $query->latest()->limit(5);
     }]);
 
@@ -154,8 +165,33 @@ final class BillboardController extends Controller
   {
     $this->authorize('update', $billboard);
 
-    return Inertia::render('billboards/Edit', [
+  $billboard->loadMissing('company', 'media')
+    ->loadCount(['contracts as active_contracts_count' => function ($query) {
+      $query->where('status', 'active');
+    }]);
+
+  // Nearby/other billboards for clustering (same company, with coordinates)
+  $nearby = $billboard->company
+    ? $billboard->company->billboards()
+        ->whereNotNull('latitude')
+        ->whereNotNull('longitude')
+        ->where('id', '!=', $billboard->id)
+        ->select('id', 'name', 'code', 'latitude', 'longitude')
+        ->limit(500)
+        ->get()
+        ->map(fn ($b) => [
+          'id' => $b->id,
+          'name' => $b->name,
+          'code' => $b->code,
+          'latitude' => (float) $b->latitude,
+          'longitude' => (float) $b->longitude,
+        ])
+    : collect();
+
+  return Inertia::render('billboards/Edit', [
       'billboard' => new BillboardResource($billboard),
+      'nearby_markers' => $nearby,
+  'statuses' => BillboardStatus::options(),
     ]);
   }
 
@@ -163,10 +199,30 @@ final class BillboardController extends Controller
   {
     $this->authorize('update', $billboard);
 
-    $billboard->update($request->validated());
+  // Exclude 'images' from mass assignment; files are handled via Media Library
+  $data = $request->safe()->except(['images']);
+  $billboard->update($data);
+
+    // Attach any newly uploaded images
+    if (request()->hasFile('images')) {
+      foreach ((array) request()->file('images') as $image) {
+        $billboard->addMedia($image)->toMediaCollection('images');
+      }
+    }
 
     return redirect()->route('billboards.show', $billboard)
       ->with('success', "Billboard '{$billboard->name}' updated successfully!");
+  }
+
+  public function deleteMedia(Request $request, Billboard $billboard): RedirectResponse
+  {
+    $this->authorize('manageMedia', $billboard);
+
+    $request->validate(['media_id' => 'required|integer']);
+    $media = $billboard->media()->where('id', $request->input('media_id'))->firstOrFail();
+    $media->delete();
+
+    return back()->with('success', 'Image removed.');
   }
 
   public function destroy(Billboard $billboard): RedirectResponse
@@ -205,16 +261,27 @@ final class BillboardController extends Controller
     $request->validate([
       'billboard_ids' => 'required|array',
       'billboard_ids.*' => 'exists:billboards,id',
-      'action' => 'required|in:activate,deactivate,maintenance',
+      'action' => 'required|in:activate,set_available,maintenance,remove',
     ]);
 
     $user = Auth::user();
     $company = $user->currentCompany;
 
+    // If any selected billboard is currently in maintenance, only company owners can change its status
+    $hasMaintenance = Billboard::whereIn('id', $request->billboard_ids)
+      ->where('status', BillboardStatus::MAINTENANCE->value)
+      ->exists();
+    if ($hasMaintenance && !($user?->hasRole('company_owner'))) {
+      return response()->json([
+        'message' => 'Only a company owner can change status while a billboard is in maintenance.',
+      ], 403);
+    }
+
     $status = match ($request->action) {
-      'activate' => 'active',
-      'deactivate' => 'inactive',
-      'maintenance' => 'maintenance',
+      'activate' => BillboardStatus::ACTIVE->value,
+      'set_available' => BillboardStatus::AVAILABLE->value,
+      'maintenance' => BillboardStatus::MAINTENANCE->value,
+      'remove' => BillboardStatus::REMOVED->value,
     };
 
     $updated = $this->billboardService->bulkUpdateStatus(
@@ -244,7 +311,7 @@ final class BillboardController extends Controller
       return response()->json(['billboards' => []]);
     }
 
-    $billboards = $this->billboardService->searchBillboards($company, $request->query);
+  $billboards = $this->billboardService->searchBillboards($company, $request->input('query'));
 
     return response()->json([
       'billboards' => BillboardResource::collection($billboards),

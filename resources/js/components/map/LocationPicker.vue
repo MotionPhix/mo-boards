@@ -7,84 +7,98 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet-geosearch/dist/geosearch.css'
 import { OpenStreetMapProvider, GeoSearchControl } from 'leaflet-geosearch'
+// Marker cluster plugin (no TS types provided)
+import 'leaflet.markercluster'
+import 'leaflet.markercluster/dist/MarkerCluster.css'
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 
-// Define types
-interface SavedLocation {
-  id: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-  address?: string;
-}
+// (Saved locations feature removed)
 
 // Define props and emits
 const props = withDefaults(defineProps<{
   latitude: number | null
   longitude: number | null
   mapHeight?: string
+  address?: string | null
+  nearbyMarkers?: { id: number; name: string; code?: string; latitude: number; longitude: number }[]
 }>(), {
-  mapHeight: '350px'
+  mapHeight: '350px',
+  address: null,
+  nearbyMarkers: () => [],
 })
 
 const emit = defineEmits<{
   (e: 'update:latitude', value: number | null): void
   (e: 'update:longitude', value: number | null): void
+  (e: 'update:address', value: string | null): void
 }>()
 
 // Component refs and state
 const mapContainer = ref<HTMLElement | null>(null)
-const searchInput = ref<HTMLInputElement | null>(null)
-const isSearching = ref(false)
-const isLocating = ref(false)
+// const isSearching = ref(false) // removed: no longer used
 const isLoadingAddress = ref(false)
 const currentAddress = ref<string | null>(null)
-const savedLocations = ref<SavedLocation[]>([])
-const showSaveDialog = ref(false)
-const showSavedLocationsDropdown = ref(false)
-const locationName = ref('')
+// removed saved locations state
 const isEditingAddress = ref(false)
 const editedAddress = ref('')
 let map: L.Map | null = null
 let marker: L.Marker | null = null
 let searchControl: any = null
+let clusterLayer: any = null
+const hasAutoLocated = ref(false)
 
-// Load saved locations from localStorage
-onMounted(() => {
-  const storedLocations = localStorage.getItem('savedMapLocations')
-  if (storedLocations) {
-    try {
-      savedLocations.value = JSON.parse(storedLocations)
-    } catch (e) {
-      console.error('Failed to parse saved locations', e)
-      savedLocations.value = []
-    }
-  }
-})
+// Helpers to validate coordinates safely
+function isValidLat(val: unknown): val is number {
+  return typeof val === 'number' && Number.isFinite(val) && val >= -90 && val <= 90
+}
+function isValidLng(val: unknown): val is number {
+  return typeof val === 'number' && Number.isFinite(val) && val >= -180 && val <= 180
+}
+function hasValidCoords(lat: unknown, lng: unknown): lat is number & unknown {
+  // Use both validators; this signature helps TS narrow but is mainly for runtime safety
+  return isValidLat(lat) && isValidLng(lng)
+}
 
-// Watch for changes to saved locations to persist them
-watch(savedLocations, (newLocations) => {
-  localStorage.setItem('savedMapLocations', JSON.stringify(newLocations))
-}, { deep: true })
+// removed saved locations persistence
 
 // Watch for prop changes to update the marker
-watch(() => [props.latitude, props.longitude], ([newLat, newLng]) => {
-  if (map && newLat !== null && newLng !== null) {
-    const position: L.LatLngExpression = [newLat, newLng]
-    
+watch(() => [props.latitude, props.longitude], async ([newLat, newLng]) => {
+  if (!map) return
+  if (hasValidCoords(newLat, newLng)) {
+    const position: L.LatLngExpression = [newLat as number, newLng as number]
     if (marker) {
       marker.setLatLng(position)
     } else {
       createMarker(position)
     }
-    
     map.setView(position, 15)
+  } else {
+    // Clear existing marker if coordinates are cleared
+    if (marker) {
+      marker.remove()
+      marker = null
+    }
+    currentAddress.value = null
+    if (!hasAutoLocated.value) {
+      const ok = await tryAutoLocate()
+      if (ok) hasAutoLocated.value = true
+    }
   }
 })
 
 // Watch for address changes
 watch(() => currentAddress.value, (newAddress) => {
-  if (newAddress) {
-    editedAddress.value = newAddress
+  if (newAddress !== undefined) {
+    editedAddress.value = newAddress || ''
+    emit('update:address', newAddress)
+  }
+})
+
+// Keep internal address in sync if parent provides one
+watch(() => props.address, (val) => {
+  if (val && val !== currentAddress.value) {
+    currentAddress.value = val
+    editedAddress.value = val
   }
 })
 
@@ -93,19 +107,34 @@ onMounted(() => {
   if (!mapContainer.value) return
 
   // Create map instance
-  map = L.map(mapContainer.value, {
-    center: [props.latitude || 0, props.longitude || 0],
-    zoom: props.latitude && props.longitude ? 15 : 2,
-    layers: [
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      })
-    ]
+  // Base layers
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
   })
+  const cartoLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors & CARTO'
+  })
+  const cartoDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors & CARTO'
+  })
+
+  map = L.map(mapContainer.value, {
+    center: [props.latitude ?? 0, props.longitude ?? 0],
+    zoom: (props.latitude !== null && props.longitude !== null) ? 15 : 3,
+    layers: [cartoLight],
+  })
+
+  // Layers control
+  const baseLayers = {
+    'Carto Light': cartoLight,
+    'Carto Dark': cartoDark,
+    'OSM Standard': osm,
+  }
+  L.control.layers(baseLayers, {}, { position: 'topleft' }).addTo(map)
 
   // Set up search provider
   const provider = new OpenStreetMapProvider()
-  
+
   // Add search control
   searchControl = GeoSearchControl({
     provider: provider,
@@ -118,13 +147,47 @@ onMounted(() => {
     keepResult: true,
     searchLabel: 'Search for location'
   })
-  
+
   map.addControl(searchControl)
 
   // Create a marker if we have initial coordinates
-  if (props.latitude && props.longitude) {
-    createMarker([props.latitude, props.longitude])
+  if (hasValidCoords(props.latitude, props.longitude)) {
+    createMarker([props.latitude as number, props.longitude as number])
   }
+
+  // If no coordinates provided, try to auto-locate the user (once)
+  const attemptAutoLocate = async () => {
+    if (hasAutoLocated.value) return
+    if (props.latitude === null || props.longitude === null) {
+      const ok = await tryAutoLocate()
+      if (ok) {
+        hasAutoLocated.value = true
+      }
+    }
+  }
+
+  // Add nearby markers in a cluster group (if provided)
+  if (props.nearbyMarkers && props.nearbyMarkers.length > 0) {
+  // @ts-expect-error: L.markerClusterGroup is provided by plugin without types
+    clusterLayer = L.markerClusterGroup()
+    props.nearbyMarkers.forEach((m) => {
+      const marker = L.marker([m.latitude, m.longitude])
+        .bindPopup(`<div class=\"text-sm\"><div class=\"font-medium\">${m.name}</div><div class=\"text-xs text-muted-foreground\">${m.code ?? ''}</div></div>`)
+      clusterLayer.addLayer(marker)
+    })
+    clusterLayer.addTo(map)
+  }
+
+  // Try auto locate first, then if still no position and we have clusters, fit to bounds
+  ;(async () => {
+    await attemptAutoLocate()
+  if (!hasAutoLocated.value && !hasValidCoords(props.latitude, props.longitude) && clusterLayer) {
+      const bounds = clusterLayer.getBounds()
+      if (bounds && bounds.isValid()) {
+        map!.fitBounds(bounds.pad(0.1))
+      }
+    }
+  })()
 
   // Handle search results
   map.on('geosearch/showlocation', async (event: any) => {
@@ -133,8 +196,8 @@ onMounted(() => {
       updateMarkerPosition([location.y, location.x])
       emit('update:latitude', location.y)
       emit('update:longitude', location.x)
-      isSearching.value = false
-      
+  // removed isSearching
+
       // Get address from search result if available
       if (location.label) {
         currentAddress.value = location.label
@@ -152,17 +215,20 @@ onMounted(() => {
     updateMarkerPosition(position)
     emit('update:latitude', event.latlng.lat)
     emit('update:longitude', event.latlng.lng)
-    
+
     // Get address for the clicked location
     const address = await reverseGeocode(event.latlng.lat, event.latlng.lng)
     currentAddress.value = address
   })
-  
+
   // Add zoom control with home button
   L.control.zoom({
     position: 'bottomright'
   }).addTo(map)
-  
+
+  // Add scale control
+  L.control.scale({ position: 'bottomleft', imperial: true, metric: true }).addTo(map)
+
   // Add custom reset view control
   const resetViewControl = L.Control.extend({
     options: {
@@ -187,18 +253,59 @@ onMounted(() => {
         </svg>
       `
       container.title = 'Reset view'
-      
+
       container.onclick = function() {
         if (map) {
           map.setView([0, 0], 2)
         }
         return false
       }
-      
+
       return container
     }
   })
   new resetViewControl().addTo(map)
+
+  // Add fullscreen control (custom)
+  const FullscreenControl = L.Control.extend({
+    options: { position: 'bottomright' },
+    onAdd: function () {
+      const container = L.DomUtil.create('div', 'leaflet-control leaflet-control-custom')
+      container.style.backgroundColor = 'var(--background)'
+      container.style.width = '30px'
+      container.style.height = '30px'
+      container.style.cursor = 'pointer'
+      container.style.border = '2px solid rgba(0,0,0,0.2)'
+      container.style.borderRadius = '4px'
+      container.style.display = 'flex'
+      container.style.alignItems = 'center'
+      container.style.justifyContent = 'center'
+      container.title = 'Toggle fullscreen'
+
+      const setIcon = (isFs: boolean) => {
+        container.innerHTML = isFs
+          ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>`
+          : `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H3v6"/><path d="M15 21h6v-6"/><path d="M3 9l7-7"/><path d="M21 15l-7 7"/></svg>`
+      }
+
+      setIcon(!!document.fullscreenElement)
+
+      container.onclick = function () {
+        const el = mapContainer.value as HTMLElement
+        if (!document.fullscreenElement) {
+          el.requestFullscreen?.()
+        } else {
+          document.exitFullscreen?.()
+        }
+        // icon will update on next event
+        return false
+      }
+
+      document.addEventListener('fullscreenchange', () => setIcon(!!document.fullscreenElement))
+      return container
+    }
+  })
+  new FullscreenControl().addTo(map)
 })
 
 onBeforeUnmount(() => {
@@ -229,9 +336,9 @@ function createMarker(position: L.LatLngExpression) {
   })
 
   // Add the marker to the map with animation
-  marker = L.marker(position, { 
-    icon: customIcon, 
-    draggable: true 
+  marker = L.marker(position, {
+    icon: customIcon,
+    draggable: true
   }).addTo(map)
 
   // Add a tooltip to indicate draggable
@@ -252,13 +359,13 @@ function createMarker(position: L.LatLngExpression) {
       marker.closeTooltip()
     }
   })
-  
+
   marker.on('dragend', async () => {
     const newPos = marker?.getLatLng()
     if (newPos) {
       emit('update:latitude', newPos.lat)
       emit('update:longitude', newPos.lng)
-      
+
       // Get address for the new position
       const address = await reverseGeocode(newPos.lat, newPos.lng)
       currentAddress.value = address
@@ -279,47 +386,33 @@ function updateMarkerPosition(position: L.LatLngExpression) {
   }
 }
 
-// Save current location to favorites
-function saveCurrentLocation() {
-  if (props.latitude === null || props.longitude === null || !locationName.value.trim()) {
-    return
+// removed saved locations methods
+
+// Clear current selection
+function clearSelection() {
+  if (marker) {
+    marker.remove()
+    marker = null
   }
-  
-  const newLocation: SavedLocation = {
-    id: Date.now().toString(),
-    name: locationName.value.trim(),
-    latitude: props.latitude,
-    longitude: props.longitude,
-    address: currentAddress.value || undefined
-  }
-  
-  savedLocations.value.push(newLocation)
-  localStorage.setItem('savedMapLocations', JSON.stringify(savedLocations.value))
-  
-  // Reset the dialog
-  locationName.value = ''
-  showSaveDialog.value = false
+  emit('update:latitude', null)
+  emit('update:longitude', null)
+  currentAddress.value = null
 }
 
-// Load a saved location
-function loadSavedLocation(location: SavedLocation) {
-  if (map) {
-    const position: L.LatLngExpression = [location.latitude, location.longitude]
-    updateMarkerPosition(position)
-    emit('update:latitude', location.latitude)
-    emit('update:longitude', location.longitude)
-    currentAddress.value = location.address || null
-    
-    // Close the dropdown after selection
-    showSavedLocationsDropdown.value = false
+// Copy helpers
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch (e) {
+    console.error('Failed to copy', e)
   }
 }
 
-// Delete a saved location
-function deleteSavedLocation(id: string, event: Event) {
-  event.stopPropagation() // Prevent triggering the parent click
-  savedLocations.value = savedLocations.value.filter(location => location.id !== id)
-  localStorage.setItem('savedMapLocations', JSON.stringify(savedLocations.value))
+function openInGoogleMaps() {
+  if (props.latitude != null && props.longitude != null) {
+    const url = `https://maps.google.com/?q=${props.latitude},${props.longitude}`
+    window.open(url, '_blank')
+  }
 }
 
 // Reverse geocode a lat/lng to get address
@@ -329,7 +422,7 @@ async function reverseGeocode(lat: number, lng: number): Promise<string | null> 
     // Add a randomized delay to avoid rate limiting (max 1 request per second)
     const randomDelay = Math.floor(Math.random() * 500) + 500; // 500-1000ms delay
     await new Promise(resolve => setTimeout(resolve, randomDelay));
-    
+
     const response = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
       {
@@ -338,7 +431,7 @@ async function reverseGeocode(lat: number, lng: number): Promise<string | null> 
         }
       }
     )
-    
+
     if (!response.ok) {
       if (response.status === 429) {
         // Rate limited
@@ -348,12 +441,12 @@ async function reverseGeocode(lat: number, lng: number): Promise<string | null> 
       }
       throw new Error(`Failed to fetch address: ${response.statusText}`);
     }
-    
+
     const data = await response.json()
     if (data && data.display_name) {
       return data.display_name
     }
-    
+
     // Fallback to coordinates if no address found
     return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
   } catch (error) {
@@ -371,14 +464,14 @@ async function saveEditedAddress() {
     const address = editedAddress.value.trim();
     currentAddress.value = address;
     isEditingAddress.value = false;
-    
+
     // Try to geocode the address to get coordinates
     try {
       if (map && searchControl && searchControl.searchElement) {
         // This is a bit hacky but uses the existing search control
         // First clear any existing results
         searchControl.searchElement.resetInput();
-        
+
         // Set the value and trigger a search
         const searchInput = searchControl.searchElement.input;
         if (searchInput) {
@@ -399,268 +492,56 @@ function cancelEditAddress() {
   isEditingAddress.value = false
 }
 
-// Get current location from browser
-function getCurrentLocation() {
-  if (!navigator.geolocation) {
-    console.error('Geolocation is not supported by this browser.')
-    return
-  }
-  
-  isLocating.value = true
-  
-  navigator.geolocation.getCurrentPosition(
-    async (position) => {
-      const { latitude, longitude } = position.coords
-      
-      if (map) {
-        const latlng: L.LatLngExpression = [latitude, longitude]
-        updateMarkerPosition(latlng)
-        map.setView(latlng, 15)
+// removed manual geolocation helper
+// Try to get the user's current location and set marker/address
+async function tryAutoLocate(): Promise<boolean> {
+  return await new Promise<boolean>((resolve) => {
+    if (!('geolocation' in navigator)) {
+      return resolve(false)
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords
+        updateMarkerPosition([latitude, longitude])
         emit('update:latitude', latitude)
         emit('update:longitude', longitude)
-        
-        // Get address for the location
-        const address = await reverseGeocode(latitude, longitude)
-        currentAddress.value = address
-      }
-      
-      isLocating.value = false
-    },
-    (error) => {
-      console.error('Error getting current location:', error)
-      isLocating.value = false
-    },
-    {
-      enableHighAccuracy: true,
-      timeout: 5000,
-      maximumAge: 0
-    }
-  )
+        try {
+          const addr = await reverseGeocode(latitude, longitude)
+          currentAddress.value = addr
+        } catch {
+          // ignore address failure
+        }
+        resolve(true)
+      },
+      () => resolve(false),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    )
+  })
 }
 </script>
 
 <template>
   <div class="w-full">
-    <!-- Map Controls -->
-    <div class="flex flex-wrap gap-2 mb-2">
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        class="flex-1 text-xs"
-        @click="getCurrentLocation"
-        :disabled="isLocating"
-      >
-        <span v-if="isLocating">
-          <Loader2 class="mr-1 h-3 w-3 animate-spin inline-block" />
-          Locating...
-        </span>
-        <span v-else>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="mr-1 inline-block"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <circle cx="12" cy="12" r="1" />
-            <line x1="12" y1="2" x2="12" y2="4" />
-            <line x1="12" y1="20" x2="12" y2="22" />
-            <line x1="2" y1="12" x2="4" y2="12" />
-            <line x1="20" y1="12" x2="22" y2="12" />
-          </svg>
-          Use My Location
-        </span>
-      </Button>
-      
-      <div class="relative flex-1">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          class="w-full text-xs"
-          @click="showSavedLocationsDropdown = !showSavedLocationsDropdown"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="mr-1 inline-block"
-          >
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-            <circle cx="12" cy="10" r="3"></circle>
-          </svg>
-          Saved Locations
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="ml-1 inline-block"
-          >
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
-        </Button>
-        
-        <!-- Saved Locations Dropdown -->
-        <div
-          v-if="showSavedLocationsDropdown"
-          class="absolute z-10 mt-1 w-full bg-background border border-border rounded-md shadow-lg py-1 text-sm"
-        >
-          <div
-            v-if="savedLocations.length === 0"
-            class="px-3 py-2 text-muted-foreground text-center"
-          >
-            No saved locations
-          </div>
-          <div
-            v-for="location in savedLocations"
-            :key="location.id"
-            class="px-3 py-2 hover:bg-accent cursor-pointer flex justify-between items-center"
-            @click="loadSavedLocation(location)"
-          >
-            <div>
-              <div class="font-medium">{{ location.name }}</div>
-              <div class="text-xs text-muted-foreground truncate max-w-[200px]">
-                {{ location.address || `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}` }}
-              </div>
-              <div class="text-xs text-primary-foreground/70 mt-1">
-                <span class="bg-primary/10 rounded px-1 py-0.5 mr-1">{{ location.latitude.toFixed(4) }}</span>
-                <span class="bg-primary/10 rounded px-1 py-0.5">{{ location.longitude.toFixed(4) }}</span>
-              </div>
-            </div>
-            <button
-              @click="deleteSavedLocation(location.id, $event)"
-              class="text-muted-foreground hover:text-destructive p-1"
-              title="Delete this location"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M3 6h18"></path>
-                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                <line x1="10" y1="11" x2="10" y2="17"></line>
-                <line x1="14" y1="11" x2="14" y2="17"></line>
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        class="flex-none text-xs"
-        @click="showSaveDialog = !showSaveDialog"
-        :disabled="!latitude || !longitude"
-        title="Save current location"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-          <polyline points="17 21 17 13 7 13 7 21"></polyline>
-          <polyline points="7 3 7 8 15 8"></polyline>
-        </svg>
-      </Button>
-    </div>
-    
-    <!-- Save Location Dialog -->
-    <div v-if="showSaveDialog" class="mb-2 p-3 border border-border rounded-md bg-muted/10">
-      <h3 class="text-sm font-medium mb-2">Save Current Location</h3>
-      <div class="space-y-2">
-        <Input
-          v-model="locationName"
-          placeholder="Location name"
-          class="text-sm"
-        />
-        <div class="flex justify-end space-x-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            @click="showSaveDialog = false"
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            @click="saveCurrentLocation"
-            :disabled="!locationName.trim()"
-          >
-            Save
-          </Button>
-        </div>
-      </div>
-    </div>
-    
+    <!-- Map Controls removed -->
+
     <!-- Map Container -->
     <div
       ref="mapContainer"
       class="w-full rounded-md border border-border bg-muted/20 shadow-sm relative overflow-hidden"
       :style="{ height: mapHeight }"
     ></div>
-    
-    <!-- Search Box (Note: This is for UI purposes only, actual search is handled by Leaflet GeoSearch) -->
-    <div class="relative mt-2">
-      <Input
-        type="text"
-        ref="searchInput"
-        placeholder="Search for location..."
-        class="pr-8"
-        disabled
-      />
-      <div class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-        Use search in map
-      </div>
-    </div>
-    
+
     <!-- Address Display -->
-    <div v-if="currentAddress || isLoadingAddress" class="mt-2 text-sm">
+    <div v-if="currentAddress || isLoadingAddress" class="mt-6 text-sm">
       <div v-if="isLoadingAddress" class="text-muted-foreground flex items-center">
         <Loader2 class="mr-1 h-3 w-3 animate-spin" /> Loading address...
       </div>
       <div v-else-if="currentAddress" class="text-foreground">
         <div class="font-medium text-xs uppercase tracking-wide text-muted-foreground mb-1">
           Address
-          <button 
-            @click="isEditingAddress = !isEditingAddress" 
+          <button
+            type="button"
+            @click="isEditingAddress = !isEditingAddress"
             class="ml-1 inline-flex items-center text-xs text-primary hover:text-primary/80"
             title="Edit address"
           >
@@ -683,25 +564,29 @@ function getCurrentLocation() {
           {{ currentAddress }}
         </div>
         <div v-else class="flex flex-col sm:flex-row gap-2">
-          <Input 
-            v-model="editedAddress" 
-            class="text-sm py-1 h-8 flex-1" 
+          <Input
+            v-model="editedAddress"
+            class="text-sm py-1 h-8 flex-1"
             placeholder="Enter address manually"
             @keydown.enter="saveEditedAddress"
             @keydown.esc="cancelEditAddress"
           />
           <div class="flex space-x-1 justify-end">
-            <Button size="sm" class="h-8 px-2" @click="saveEditedAddress">Save</Button>
-            <Button size="sm" variant="ghost" class="h-8 px-2" @click="cancelEditAddress">Cancel</Button>
+            <Button type="button" size="sm" class="h-8 px-2" @click="saveEditedAddress">Save</Button>
+            <Button type="button" size="sm" variant="ghost" class="h-8 px-2" @click="cancelEditAddress">Cancel</Button>
           </div>
         </div>
       </div>
     </div>
-    
+
     <!-- Coordinates Display -->
-    <div class="flex items-center justify-between mt-2 text-sm text-muted-foreground">
-      <span>Latitude: {{ latitude?.toFixed(6) || 'Not set' }}</span>
-      <span>Longitude: {{ longitude?.toFixed(6) || 'Not set' }}</span>
+    <div class="mt-6 flex flex-wrap items-center gap-2">
+  <Button size="sm" variant="outline" class="h-8" :disabled="latitude === null || longitude === null" @click="openInGoogleMaps">Open in Google Maps</Button>
+      <Button size="sm" variant="outline" class="h-8" :disabled="latitude === null || longitude === null" @click="copyToClipboard(`${latitude}, ${longitude}`)">Copy Coords</Button>
+      <Button size="sm" variant="ghost" class="h-8" @click="clearSelection">Clear Pin</Button>
+      <div class="text-xs text-muted-foreground" v-if="currentAddress">
+        <Button size="sm" variant="ghost" class="h-8 px-2" @click="copyToClipboard(currentAddress!)">Copy Address</Button>
+      </div>
     </div>
   </div>
 </template>
@@ -838,17 +723,17 @@ function getCurrentLocation() {
     margin-left: 10px !important;
     margin-right: 10px !important;
   }
-  
+
   .leaflet-control-geosearch form {
     width: 100% !important;
     box-sizing: border-box;
   }
-  
+
   .leaflet-control-geosearch form input {
     width: calc(100% - 30px) !important;
     box-sizing: border-box;
   }
-  
+
   .leaflet-control-zoom {
     margin-bottom: 50px !important; /* Give space for search bar at bottom */
   }

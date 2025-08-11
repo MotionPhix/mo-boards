@@ -21,6 +21,7 @@ class ContractTemplate extends Model
     'custom_fields',
     'is_active',
     'is_system_template',
+    'is_premium',
     'price',
     'category',
     'features',
@@ -33,6 +34,7 @@ class ContractTemplate extends Model
     'custom_fields' => 'array',
     'is_active' => 'boolean',
     'is_system_template' => 'boolean',
+    'is_premium' => 'boolean',
     'price' => 'decimal:2',
     'tags' => 'array',
   ];

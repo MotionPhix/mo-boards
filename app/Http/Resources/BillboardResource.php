@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Enums\BillboardStatus;
 use App\Helpers\CurrencyHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -21,7 +22,12 @@ class BillboardResource extends JsonResource
     $currency = $company->currency ?? 'USD';
     $currencySymbol = CurrencyHelper::getSymbol($currency);
 
-    return [
+  $activeContractsCount = $this->getActiveContractsCount();
+
+  // Normalize status to string in case the model casts it to an enum
+  $statusValue = $this->status instanceof BillboardStatus ? $this->status->value : (string) $this->status;
+
+  return [
       'id' => $this->id,
       'uuid' => $this->uuid,
       'code' => $this->code,
@@ -46,14 +52,17 @@ class BillboardResource extends JsonResource
         'formatted_annual_rate' => $this->monthly_rate ? CurrencyHelper::format((float) $this->monthly_rate * 12, $currency) : null,
       ],
       'status' => [
-        'current' => $this->status,
-        'label' => ucfirst($this->status),
+        'current' => $statusValue,
+        'label' => $this->status instanceof BillboardStatus
+          ? $this->status->label()
+          : (BillboardStatus::tryFrom($statusValue)?->label() ?? ucfirst($statusValue)),
         'color' => $this->getStatusColor(),
-        'can_edit' => $this->status !== 'maintenance',
+        'can_edit' => $statusValue !== BillboardStatus::MAINTENANCE->value
+          || (request()->user()?->hasRole('company_owner') ?? false),
       ],
       'description' => $this->description,
       'contracts' => [
-        'active_count' => $this->active_contracts_count ?? 0,
+        'active_count' => $activeContractsCount,
         'is_occupied' => $this->isCurrentlyOccupied(),
         'current_contract' => $this->when(
           $this->relationLoaded('contracts') && $this->contracts->isNotEmpty(),
@@ -77,15 +86,35 @@ class BillboardResource extends JsonResource
               'id' => $media->id,
               'name' => $media->name,
               'url' => $media->getUrl(),
-              'preview_url' => $media->hasGeneratedConversion('preview')
+              'preview_url' => method_exists($media, 'hasGeneratedConversion') && $media->hasGeneratedConversion('preview')
                 ? $media->getUrl('preview')
                 : $media->getUrl(),
               'type' => $media->mime_type,
               'size' => $this->formatFileSize($media->size),
+              'collection' => $media->collection_name,
             ];
           });
         }
       ),
+      'images' => $this->when(
+        $this->relationLoaded('media'),
+        fn () => $this->getMedia('images')->map(fn ($m) => [
+          'id' => $m->id,
+          'name' => $m->name,
+          'url' => $m->getUrl(),
+          'preview_url' => method_exists($m, 'hasGeneratedConversion') && $m->hasGeneratedConversion('preview') ? $m->getUrl('preview') : $m->getUrl(),
+          'type' => $m->mime_type,
+          'size' => $this->formatFileSize($m->size),
+        ])),
+      'documents' => $this->when(
+        $this->relationLoaded('media'),
+        fn () => $this->getMedia('documents')->map(fn ($m) => [
+          'id' => $m->id,
+          'name' => $m->name,
+          'url' => $m->getUrl(),
+          'type' => $m->mime_type,
+          'size' => $this->formatFileSize($m->size),
+        ])),
       'performance' => $this->when(
         $request->routeIs('billboards.show'),
         function () {
@@ -107,19 +136,46 @@ class BillboardResource extends JsonResource
       'updated_at' => $this->updated_at?->setTimezone($company->timezone ?? 'UTC')->format($company->date_format ?? 'Y-m-d'),
       'actions' => [
         'can_view' => true,
-        'can_edit' => $this->status !== 'maintenance',
-        'can_delete' => $this->active_contracts_count === 0,
+        'can_edit' => $statusValue !== BillboardStatus::MAINTENANCE->value
+          || (request()->user()?->hasRole('company_owner') ?? false),
+        'can_delete' => $activeContractsCount === 0,
         'can_duplicate' => true,
       ],
     ];
   }
 
+  private function getActiveContractsCount(): int
+  {
+    // Prefer preloaded alias from withCount to avoid extra queries
+    try {
+      $attributes = method_exists($this->resource, 'getAttributes')
+        ? $this->resource->getAttributes()
+        : [];
+      if (array_key_exists('active_contracts_count', $attributes)) {
+        return (int) $attributes['active_contracts_count'];
+      }
+    } catch (\Throwable $e) {
+      // Fall through to DB count
+    }
+
+    // Fallback: compute directly
+    try {
+      return (int) $this->resource->contracts()
+        ->where('status', 'active')
+        ->count();
+    } catch (\Throwable $e) {
+      return 0;
+    }
+  }
+
   private function getStatusColor(): string
   {
-    return match ($this->status) {
+    $statusValue = $this->status instanceof BillboardStatus ? $this->status->value : (string) $this->status;
+    return match ($statusValue) {
       'active' => 'green',
-      'inactive' => 'red',
+      'available' => 'blue',
       'maintenance' => 'yellow',
+      'removed' => 'gray',
       default => 'gray',
     };
   }
@@ -155,9 +211,15 @@ class BillboardResource extends JsonResource
 
   private function calculateTotalRevenue(): float
   {
-    return $this->contracts()
-      ->whereIn('status', ['active', 'completed'])
-      ->sum('total_amount');
+    try {
+      $sum = $this->contracts()
+        ->whereIn('status', ['active', 'completed'])
+        ->sum('total_amount');
+
+      return (float) $sum;
+    } catch (\Throwable $e) {
+      return 0.0;
+    }
   }
 
   private function calculateAverageContractDuration(): int
@@ -172,7 +234,7 @@ class BillboardResource extends JsonResource
       return $contract->start_date->diffInDays($contract->end_date);
     });
 
-    return round($totalDays / $contracts->count());
+  return (int) round($totalDays / $contracts->count());
   }
 
   private function formatFileSize(int $bytes): string

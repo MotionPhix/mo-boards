@@ -1,617 +1,415 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useForm, router } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
+import { reactive, ref, computed } from 'vue'
+import { router, usePage } from '@inertiajs/vue3'
+import { route } from 'ziggy-js'
+import { Plus, Pencil as Edit, Save, AlertCircle, Trash2 } from 'lucide-vue-next'
+import AppLayout from '@/layouts/AppLayout.vue'
+import DocumentEditor from '@/components/DocumentEditor.vue'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import AlertDialog from '@/components/ui/alert-dialog/AlertDialog.vue';
-import AlertDialogAction from '@/components/ui/alert-dialog/AlertDialogAction.vue';
-import AlertDialogCancel from '@/components/ui/alert-dialog/AlertDialogCancel.vue';
-import AlertDialogContent from '@/components/ui/alert-dialog/AlertDialogContent.vue';
-import AlertDialogDescription from '@/components/ui/alert-dialog/AlertDialogDescription.vue';
-import AlertDialogFooter from '@/components/ui/alert-dialog/AlertDialogFooter.vue';
-import AlertDialogHeader from '@/components/ui/alert-dialog/AlertDialogHeader.vue';
-import AlertDialogTitle from '@/components/ui/alert-dialog/AlertDialogTitle.vue';
-import {
-  ArrowLeft,
-  Eye,
-  HelpCircle,
-  Plus,
-  Copy,
-  Trash2,
-  Circle,
-  Loader2
-} from 'lucide-vue-next';
-import DocumentEditor from '@/components/DocumentEditor.vue';
-import PlaceholderDocumentation from '@/components/PlaceholderDocumentation.vue';
-import DefaultTermsEditor from '@/components/DefaultTermsEditor.vue';
-import CustomFieldsEditor from '@/components/CustomFieldsEditor.vue';
-
-interface ContractTemplate {
-  id: number;
-  name: string;
-  description?: string;
-  content?: string;
-  default_terms?: any;
-  custom_fields?: any[];
-  is_active: boolean;
-  contracts?: any[];
-  created_at: string;
-  updated_at: string;
-}
+  SelectValue
+} from '@/components/ui/select'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import type { ContractTemplate } from '@/types'
 
 interface Props {
-  template: ContractTemplate;
+  template: ContractTemplate
+  categories: string[]
+  errors?: Record<string, string>
 }
 
-const props = defineProps<Props>();
+const props = defineProps<Props>()
 
-const showPlaceholderDocs = ref(false);
-const showDeleteModal = ref(false);
-const selectedPlaceholder = ref('');
+// Type definitions
+interface Role {
+  id: number
+  name: string
+}
 
-// Define available placeholders for the template
-const placeholders = [
-  { id: 'client_name', label: 'Client Name', value: '{{client_name}}' },
-  { id: 'contract_id', label: 'Contract ID', value: '{{contract_id}}' },
-  { id: 'contract_date', label: 'Contract Date', value: '{{contract_date}}' },
-  { id: 'contract_amount', label: 'Contract Amount', value: '{{contract_amount}}' },
-  { id: 'start_date', label: 'Start Date', value: '{{start_date}}' },
-  { id: 'end_date', label: 'End Date', value: '{{end_date}}' },
-  { id: 'company_name', label: 'Company Name', value: '{{company_name}}' },
-  { id: 'company_address', label: 'Company Address', value: '{{company_address}}' },
-  { id: 'company_email', label: 'Company Email', value: '{{company_email}}' },
-  { id: 'company_phone', label: 'Company Phone', value: '{{company_phone}}' },
-  { id: 'client_email', label: 'Client Email', value: '{{client_email}}' },
-  { id: 'client_phone', label: 'Client Phone', value: '{{client_phone}}' },
-  { id: 'client_address', label: 'Client Address', value: '{{client_address}}' },
-  // Add custom fields placeholders based on your application's needs
-];
+interface User {
+  id: number
+  name: string
+  email: string
+  roles?: Role[]
+}
 
-// Function to insert placeholder at cursor position
-const insertPlaceholder = () => {
-  if (!selectedPlaceholder.value) return;
+interface AuthProps {
+  user?: User
+}
 
-  const placeholder = placeholders.find(p => p.id === selectedPlaceholder.value);
-  if (!placeholder) return;
+interface PageProps {
+  auth?: AuthProps
+  [key: string]: any
+}
 
-  // In a real CKEditor implementation, we'd use CKEditor's API
-  // Since we don't have direct access to the editor instance here,
-  // we'll need to set up a way to pass this to the DocumentEditor component
+const page = usePage<PageProps>()
 
-  // For demonstration, we'll create a custom event that the DocumentEditor can listen for
-  // This event will pass the placeholder text to insert
-  const event = new CustomEvent('insert-placeholder', {
-    detail: { text: placeholder.value }
-  });
-  document.dispatchEvent(event);
+// Check if user is super admin
+const isSuperAdmin = computed(() => {
+  return page.props.auth?.user?.roles?.some((role: Role) => role.name === 'super_admin')
+})
 
-  // Reset the selection
-  selectedPlaceholder.value = '';
-};
+// Category management
+const allCategories = ref([...props.categories])
+const showNewCategoryInput = ref(false)
+const newCategoryName = ref('')
 
-const form = useForm({
-  name: props.template.name,
+// Textarea autosize
+const descriptionRef = ref<HTMLTextAreaElement | null>(null)
+
+const form = reactive({
+  name: props.template.name || '',
   description: props.template.description || '',
+  category: props.template.category || '',
   content: props.template.content || '',
-  default_terms: props.template.default_terms || {},
-  custom_fields: props.template.custom_fields || [],
-  is_active: props.template.is_active,
-});
+  price: props.template.price ? props.template.price.toString() : '',
+  is_active: props.template.is_active ?? true,
+  is_premium: props.template.is_premium ?? false,
+  tags: props.template.tags ? props.template.tags.join(', ') : '',
+  processing: false
+})
 
-const submit = () => {
-  form.put(route('contract-templates.update', props.template.id), {
-    preserveScroll: true,
+// Auto-resize textarea
+const autoResizeTextarea = () => {
+  if (descriptionRef.value) {
+    descriptionRef.value.style.height = 'auto'
+    descriptionRef.value.style.height = descriptionRef.value.scrollHeight + 'px'
+  }
+}
 
-    onSuccess: () => {
-      // Redirect will be handled by the controller
-    },
-
-    onError: (errors) => {
-      console.error('Validation errors:', errors);
-    },
-  });
-};
-
-const confirmDelete = () => {
-  showDeleteModal.value = true;
-};
-
-const deleteTemplate = () => {
-  router.delete(route('contract-templates.destroy', props.template.id), {
-    onSuccess: () => {
-      // Redirect will be handled by the controller
-    },
-    onError: (errors) => {
-      console.error('Delete error:', errors);
-    },
-  });
-};
-
-const duplicateTemplate = () => {
-  router.post(route('contract-templates.duplicate', props.template.id), {}, {
-    onSuccess: () => {
-      router.visit(route('contract-templates.index'));
-    },
-    onError: (errors) => {
-      console.error('Error duplicating template:', errors);
+// Add new category
+const addNewCategory = () => {
+  if (newCategoryName.value.trim()) {
+    const categoryName = newCategoryName.value.trim()
+    if (!allCategories.value.includes(categoryName)) {
+      allCategories.value.push(categoryName)
+      form.category = categoryName // Set as selected
     }
-  });
-};
+    newCategoryName.value = ''
+    showNewCategoryInput.value = false
+  }
+}
 
-const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  });
-};
+const cancelNewCategory = () => {
+  newCategoryName.value = ''
+  showNewCategoryInput.value = false
+}
 
-// Function to print preview the template
-const printPreview = () => {
-  // Create a new window for printing
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    console.error('Could not open print window');
-    return;
+const submitForm = () => {
+  if (form.processing) return
+
+  form.processing = true
+
+  const formData = {
+    name: form.name,
+    description: form.description,
+    content: form.content,
+    category: form.category,
+    is_active: form.is_active,
+    is_premium: isSuperAdmin.value ? form.is_premium : false, // Only super admins can create premium templates
+    price: form.price,
+    _method: 'PUT'
   }
 
-  // Get the template content HTML
-  const templateHTML = form.content;
+  router.post(route('contract-templates.update', props.template.uuid), formData, {
+    onFinish: () => {
+      form.processing = false
+    },
+    onSuccess: () => {
+      router.visit('/contract-templates')
+    },
+  })
+}
 
-  // Create the print document
-  const printDocument = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>${form.name}</title>
-      <meta charset="utf-8">
-      <style>
-        body {
-          margin: 0;
-          padding: 20px;
-          font-family: 'Arial', sans-serif;
-          line-height: 1.6;
-          color: #333;
-        }
-
-        /* Table styles */
-        table {
-          border-collapse: collapse;
-          margin: 1rem 0;
-          width: 100%;
-          border: 2px solid #ced4da;
-        }
-
-        table td, table th {
-          border: 2px solid #ced4da;
-          padding: 8px 12px;
-          vertical-align: top;
-        }
-
-        table th {
-          background-color: #f8f9fa;
-          font-weight: bold;
-          text-align: left;
-        }
-
-        /* List styles */
-        ul {
-          list-style-type: disc;
-          margin-left: 1.5rem;
-          margin: 1rem 0;
-        }
-
-        ol {
-          list-style-type: decimal;
-          margin-left: 1.5rem;
-          margin: 1rem 0;
-        }
-
-        li {
-          margin: 0.25rem 0;
-          padding-left: 0.25rem;
-        }
-
-        /* Text formatting */
-        h1 {
-          font-size: 2rem;
-          font-weight: bold;
-          margin: 1.5rem 0 1rem 0;
-        }
-
-        h2 {
-          font-size: 1.5rem;
-          font-weight: bold;
-          margin: 1.25rem 0 0.75rem 0;
-        }
-
-        h3 {
-          font-size: 1.25rem;
-          font-weight: bold;
-          margin: 1rem 0 0.5rem 0;
-        }
-
-        h4 {
-          font-size: 1.125rem;
-          font-weight: bold;
-          margin: 1rem 0 0.5rem 0;
-        }
-
-        p {
-          margin: 0.75rem 0;
-          line-height: 1.625;
-        }
-
-        blockquote {
-          border-left: 4px solid #d1d5db;
-          padding-left: 1rem;
-          margin: 1rem 0;
-          font-style: italic;
-          color: #6b7280;
-        }
-
-        hr {
-          border: none;
-          border-top: 2px solid #e5e7eb;
-          margin: 2rem 0;
-        }
-
-        strong {
-          font-weight: bold;
-        }
-
-        em {
-          font-style: italic;
-        }
-
-        u {
-          text-decoration: underline;
-        }
-
-        mark {
-          background-color: #fef08a;
-          padding: 0.125rem;
-        }
-
-        /* Print specific styles */
-        @media print {
-          body {
-            margin: 0;
-            padding: 20px;
-          }
-
-          table {
-            page-break-inside: avoid;
-          }
-
-          th, td {
-            page-break-inside: avoid;
-          }
-
-          @page {
-            size: A4;
-            margin: 0.5in;
-          }
-        }
-      </style>
-    </head>
-    <body>
-      ${templateHTML}
-    </body>
-    </html>
-  `;
-
-  // Write the document and print
-  printWindow.document.write(printDocument);
-  printWindow.document.close();
-
-  // Wait for content to load then print
-  printWindow.onload = () => {
-    printWindow.focus();
-    printWindow.print();
-  };
-};
+const deleteTemplate = () => {
+  if (confirm('Are you sure you want to delete this template? This action cannot be undone.')) {
+    router.delete(route('contract-templates.destroy', props.template.uuid))
+  }
+}
 </script>
 
 <template>
   <AppLayout
-    :title="`Edit Template: ${template.name}`"
+    :title="`Edit Template: ${props.template.name}`"
     :breadcrumbs="[
-      { label: 'Templates', href: route('contract-templates.index') },
-      { label: template.name, href: route('contract-templates.show', template.id) },
-      { label: 'Edit' }
+      { label: 'Dashboard', href: route('dashboard') },
+      { label: 'Contract Templates', href: route('contract-templates.index') },
+      { label: 'Edit Template' }
     ]">
+    <div class="min-h-screen">
+      <div class="max-w-7xl mx-auto">
+        <!-- Page Header -->
+        <div class="rounded bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm">
+          <div class="px-6 py-6">
+            <div class="flex items-center justify-between">
+              <!-- Title -->
+              <div class="flex items-center space-x-4">
+                <div class="flex-shrink-0">
+                  <div class="h-10 w-10 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center">
+                    <Edit class="h-5 w-5 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">Edit Template</h1>
+                  <p class="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+                    Modify your contract template with rich text formatting and placeholders
+                  </p>
+                </div>
+              </div>
+            </div>
 
-    <div class="py-8">
-      <div class="max-w-7xl">
-        <!-- Header Actions -->
-        <div class="flex justify-between items-center mb-8">
-          <div>
-            <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Edit Template</h1>
-            <p class="mt-2 text-gray-600 dark:text-gray-400">
-              Modify your contract template content and settings
-            </p>
-          </div>
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-3 mt-6">
+              <Button
+                @click="deleteTemplate"
+                variant="outline"
+                class="border-red-300 dark:border-red-600 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"
+              >
+                <Trash2 class="h-4 w-4 mr-2" />
+                Delete
+              </Button>
 
-          <div class="flex gap-3">
-            <Button variant="outline" @click="printPreview">
-              <Eye class="w-4 h-4 mr-2" />
-              Print Preview
-            </Button>
+              <Button
+                @click="submitForm"
+                :disabled="form.processing"
+                class="bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Save class="h-4 w-4 mr-2" />
+                {{ form.processing ? 'Updating...' : 'Update' }}
+              </Button>
+            </div>
           </div>
         </div>
 
-        <form @submit.prevent="submit" class="space-y-6">
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Main Content -->
-            <div class="lg:col-span-2 space-y-6">
-              <!-- Template Basic Information -->
-              <Card>
-                <CardHeader>
-                  <CardTitle>Template Information</CardTitle>
-                  <CardDescription>
-                    Update the basic details of your contract template
-                  </CardDescription>
-                </CardHeader>
-                <CardContent class="space-y-6">
-                  <div class="space-y-2">
-                    <Label for="name">Template Name</Label>
-                    <Input
-                      id="name"
-                      v-model="form.name"
-                      type="text"
-                      required
-                      placeholder="e.g., Billboard Advertising Agreement"
-                    />
-                    <div v-if="form.errors.name" class="text-sm text-red-600">
-                      {{ form.errors.name }}
-                    </div>
-                  </div>
+        <!-- Error Alert -->
+        <div v-if="props.errors && Object.keys(props.errors).length > 0" class="mt-6">
+          <Alert class="border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800">
+            <AlertCircle class="h-4 w-4 text-red-600 dark:text-red-400" />
+            <AlertDescription class="text-red-800 dark:text-red-200">
+              <ul class="list-disc list-inside">
+                <li v-for="(error, field) in props.errors" :key="field">{{ error }}</li>
+              </ul>
+            </AlertDescription>
+          </Alert>
+        </div>
 
-                  <div class="space-y-2">
-                    <Label for="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      v-model="form.description"
-                      rows="3"
-                      placeholder="Describe when and how this template should be used..."
-                    />
-                    <div v-if="form.errors.description" class="text-sm text-red-600">
-                      {{ form.errors.description }}
-                    </div>
-                  </div>
+        <!-- Main Content -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 py-8">
+          <!-- Main Editor Area - Takes 3 columns -->
+          <div class="lg:col-span-3 space-y-6">
+            <!-- Template Details Card -->
+            <Card class="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm">
+              <CardHeader>
+                <CardTitle class="text-lg font-semibold text-slate-900 dark:text-slate-100">Template Information</CardTitle>
+              </CardHeader>
+              <CardContent class="space-y-4">
+                <div>
+                  <Label for="name" class="text-sm font-medium text-slate-700 dark:text-slate-300">Template Name</Label>
+                  <Input
+                    id="name"
+                    v-model="form.name"
+                    placeholder="Enter template name..."
+                    class="mt-1.5 border-slate-300 dark:border-slate-600 focus:border-emerald-500 dark:focus:border-emerald-400 bg-white dark:bg-slate-900"
+                  />
+                </div>
 
-                  <div class="flex items-center space-x-2">
-                    <Checkbox
-                      id="is_active"
-                      v-model:checked="form.is_active"
-                    />
-                    <Label for="is_active">
-                      Make this template active and available for use
-                    </Label>
-                  </div>
-                </CardContent>
-              </Card>
+                <div>
+                  <Label for="description" class="text-sm font-medium text-slate-700 dark:text-slate-300">Description</Label>
+                  <Textarea
+                    ref="descriptionRef"
+                    id="description"
+                    v-model="form.description"
+                    placeholder="Brief description of what this template is for..."
+                    class="mt-1.5 border-slate-300 dark:border-slate-600 focus:border-emerald-500 dark:focus:border-emerald-400 bg-white dark:bg-slate-900 resize-none"
+                    rows="3"
+                    @input="autoResizeTextarea"
+                    style="min-height: 80px;"
+                  />
+                </div>
 
-              <!-- Template Content Editor -->
-              <Card>
-                <CardHeader>
-                  <div class="flex justify-between items-center">
-                    <div>
-                      <CardTitle>Template Content</CardTitle>
-                      <CardDescription>
-                        Update your contract template using our rich text editor with placeholder support
-                      </CardDescription>
-                    </div>
-
-                    <div class="flex gap-2">
-                      <Select v-model="selectedPlaceholder" @update:modelValue="insertPlaceholder">
-                        <SelectTrigger class="w-[200px] is-large">
-                          <SelectValue placeholder="Insert placeholder..." />
+                <div class="grid grid-cols-1 gap-4">
+                  <div>
+                    <Label for="category" class="text-sm font-medium text-slate-700 dark:text-slate-300">Category</Label>
+                    <div class="space-y-2">
+                      <Select v-model="form.category" v-if="!showNewCategoryInput">
+                        <SelectTrigger class="mt-1.5 w-full border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900">
+                          <SelectValue placeholder="Select a category" />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem v-for="placeholder in placeholders" :key="placeholder.id" :value="placeholder.id">
-                            {{ placeholder.label }}
+                        <SelectContent class="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                          <SelectItem v-for="category in allCategories" :key="category" :value="category">
+                            {{ category }}
                           </SelectItem>
+                          <div class="border-t border-slate-200 dark:border-slate-600 pt-2 mt-2">
+                            <button
+                              @click="showNewCategoryInput = true"
+                              class="w-full text-left px-2 py-1.5 text-sm text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-md flex items-center gap-2"
+                            >
+                              <Plus class="h-3 w-3" />
+                              Add new category
+                            </button>
+                          </div>
                         </SelectContent>
                       </Select>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        class="is-large"
-                        @click="showPlaceholderDocs = true">
-                        <HelpCircle class="w-4 h-4 mr-2" />
-                        Placeholder Help
-                      </Button>
+
+                      <div v-if="showNewCategoryInput" class="flex gap-2 mt-1.5">
+                        <Input
+                          v-model="newCategoryName"
+                          placeholder="Enter new category name"
+                          class="flex-1 border-slate-300 dark:border-slate-600 focus:border-emerald-500 dark:focus:border-emerald-400 bg-white dark:bg-slate-900"
+                          @keyup.enter="addNewCategory"
+                          @keyup.escape="cancelNewCategory"
+                        />
+                        <Button
+                          @click="addNewCategory"
+                          size="sm"
+                          class="bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          Add
+                        </Button>
+                        <Button
+                          @click="cancelNewCategory"
+                          variant="outline"
+                          size="sm"
+                          class="border-slate-300 dark:border-slate-600"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </CardHeader>
 
-                <CardContent>
-                  <!-- Template Editor -->
-                  <div
-                      class="no-tailwind">
-                    <DocumentEditor
-                      v-model="form.content"
+                  <!-- Price field only for super admin users -->
+                  <div v-if="isSuperAdmin">
+                    <Label for="price" class="text-sm font-medium text-slate-700 dark:text-slate-300">Price (Optional)</Label>
+                    <Input
+                      id="price"
+                      v-model="form.price"
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      class="mt-1.5 border-slate-300 dark:border-slate-600 focus:border-emerald-500 dark:focus:border-emerald-400 bg-white dark:bg-slate-900"
                     />
-                    <div v-if="form.errors.content" class="mt-1 text-sm text-red-600">
-                      {{ form.errors.content }}
-                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
 
-              <!-- Default Terms -->
-              <Card>
-                <CardHeader>
-                  <CardTitle>Default Terms</CardTitle>
-                  <CardDescription>
-                    Update default values for common contract terms
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <DefaultTermsEditor v-model="form.default_terms" />
-                  <div v-if="form.errors.default_terms" class="mt-1 text-sm text-red-600">
-                    {{ form.errors.default_terms }}
-                  </div>
-                </CardContent>
-              </Card>
+                <div>
+                  <Label for="tags" class="text-sm font-medium text-slate-700 dark:text-slate-300">Tags</Label>
+                  <Input
+                    id="tags"
+                    v-model="form.tags"
+                    placeholder="legal, commercial, service (comma-separated)"
+                    class="mt-1.5 border-slate-300 dark:border-slate-600 focus:border-emerald-500 dark:focus:border-emerald-400 bg-white dark:bg-slate-900"
+                  />
+                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Separate tags with commas</p>
+                </div>
+              </CardContent>
+            </Card>
 
-              <!-- Custom Fields -->
-              <Card>
-                <CardHeader>
-                  <CardTitle>Custom Fields</CardTitle>
-                  <CardDescription>
-                    Update custom fields that can be filled when creating contracts from this template
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <CustomFieldsEditor v-model="form.custom_fields" />
-                  <div v-if="form.errors.custom_fields" class="mt-1 text-sm text-red-600">
-                    {{ form.errors.custom_fields }}
-                  </div>
-                </CardContent>
-              </Card>
-
-               <!-- Action Buttons -->
-                <Card>
-                  <CardContent class="pt-6">
-                    <div class="flex justify-end space-x-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        @click="router.visit(route('contract-templates.index'))"
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="submit"
-                        :disabled="form.processing"
-                      >
-                        <Loader2 v-if="form.processing" class="w-4 h-4 mr-2 animate-spin" />
-                        {{ form.processing ? 'Updating...' : 'Update Template' }}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-            </div>
-
-            <!-- Sidebar -->
-            <div class="lg:col-span-1 space-y-6">
-              <!-- Template Usage Statistics -->
-              <Card>
-                <CardHeader>
-                  <CardTitle>Template Usage</CardTitle>
-                  <CardDescription>
-                    Statistics about how this template is being used
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div class="grid grid-cols-1 gap-6">
-                    <div class="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                      <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                        {{ template.contracts?.length || 0 }}
-                      </div>
-                      <div class="text-sm text-gray-600 dark:text-gray-400">Contracts Created</div>
-                    </div>
-
-                    <div class="space-y-3">
-                      <div class="flex justify-between items-center">
-                        <span class="text-sm text-gray-600 dark:text-gray-400">Last Modified:</span>
-                        <span class="text-sm font-medium">{{ formatDate(template.updated_at) }}</span>
-                      </div>
-                      <div class="flex justify-between items-center">
-                        <span class="text-sm text-gray-600 dark:text-gray-400">Created On:</span>
-                        <span class="text-sm font-medium">{{ formatDate(template.created_at) }}</span>
-                      </div>
-                      <div class="flex justify-between items-center">
-                        <span class="text-sm text-gray-600 dark:text-gray-400">Status:</span>
-                        <Badge :variant="template.is_active ? 'default' : 'secondary'">
-                          <Circle class="w-2 h-2 mr-1" :class="template.is_active ? 'fill-green-500' : 'fill-gray-500'" />
-                          {{ template.is_active ? 'Active' : 'Inactive' }}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <!-- Quick Actions -->
-              <Card>
-                <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
-                </CardHeader>
-                <CardContent class="space-y-3">
-                  <Button
-                    variant="outline"
-                    class="w-full"
-                    @click="router.visit(route('contracts.create') + '?template=' + template.id)"
-                  >
-                    <Plus class="w-4 h-4 mr-2" />
-                    Create Contract
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    class="w-full"
-                    @click="duplicateTemplate"
-                  >
-                    <Copy class="w-4 h-4 mr-2" />
-                    Duplicate Template
-                  </Button>
-
-                  <Button
-                    variant="destructive"
-                    class="w-full"
-                    @click="confirmDelete"
-                  >
-                    <Trash2 class="w-4 h-4 mr-2" />
-                    Delete Template
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+            <!-- Content Editor Card -->
+            <Card class="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm">
+              <CardHeader>
+                <CardTitle class="text-lg font-semibold text-slate-900 dark:text-slate-100">Template Content</CardTitle>
+                <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3 mt-3">
+                  <p class="text-sm text-blue-800 dark:text-blue-300 font-medium mb-1">💡 Pro Tip</p>
+                  <p class="text-sm text-blue-700 dark:text-blue-300">
+                    Use placeholders like <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded text-xs">&#123;&#123;client_name&#125;&#125;</code>,
+                    <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded text-xs">&#123;&#123;start_date&#125;&#125;</code>,
+                    <code class="bg-blue-100 dark:bg-blue-800 px-1 rounded text-xs">&#123;&#123;amount&#125;&#125;</code> to create dynamic content
+                  </p>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <!-- Use the existing DocumentEditor component -->
+                <DocumentEditor
+                  v-model="form.content"
+                  class="min-h-[600px]"
+                  placeholder="Enter your contract template content here..."
+                />
+              </CardContent>
+            </Card>
           </div>
-        </form>
+
+          <!-- Sidebar - Takes 1 column -->
+          <div class="space-y-6">
+            <!-- Template Settings -->
+            <Card class="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm">
+              <CardHeader>
+                <CardTitle class="text-lg font-semibold text-slate-900 dark:text-slate-100">Settings</CardTitle>
+              </CardHeader>
+              <CardContent class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <Label class="text-sm font-medium text-slate-700 dark:text-slate-300">Active Template</Label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Make this template available for use</p>
+                  </div>
+                  <Switch v-model:checked="form.is_active" />
+                </div>
+
+                <!-- Premium template option only for super admin users -->
+                <div v-if="isSuperAdmin" class="flex items-center justify-between">
+                  <div>
+                    <Label class="text-sm font-medium text-slate-700 dark:text-slate-300">System Template</Label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Make this available as a system template</p>
+                  </div>
+                  <Switch v-model:checked="form.is_premium" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <!-- Template Scope Info -->
+            <Card class="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm">
+              <CardHeader>
+                <CardTitle class="text-lg font-semibold text-slate-900 dark:text-slate-100">Template Scope</CardTitle>
+              </CardHeader>
+              <CardContent class="space-y-3">
+                <div class="text-sm text-slate-600 dark:text-slate-400 space-y-2">
+                  <div v-if="isSuperAdmin && form.is_premium" class="bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700 rounded-lg p-3">
+                    <p class="text-sm text-violet-800 dark:text-violet-300 font-medium">🌟 System Template</p>
+                    <p class="text-xs text-violet-700 dark:text-violet-300 mt-1">Available to all companies via marketplace</p>
+                  </div>
+                  <div v-else-if="isSuperAdmin" class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
+                    <p class="text-sm text-blue-800 dark:text-blue-300 font-medium">🌍 System Template</p>
+                    <p class="text-xs text-blue-700 dark:text-blue-300 mt-1">Available to all companies</p>
+                  </div>
+                  <div v-else class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 rounded-lg p-3">
+                    <p class="text-sm text-emerald-800 dark:text-emerald-300 font-medium">🏢 Company Template</p>
+                    <p class="text-xs text-emerald-700 dark:text-emerald-300 mt-1">Available to your team</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <!-- Help & Tips -->
+            <Card class="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm">
+              <CardHeader>
+                <CardTitle class="text-lg font-semibold text-slate-900 dark:text-slate-100">Template Tips</CardTitle>
+              </CardHeader>
+              <CardContent class="space-y-3">
+                <div class="text-sm text-slate-600 dark:text-slate-400 space-y-2">
+                  <p><strong>Placeholders:</strong> Use curly braces like <code class="bg-slate-100 dark:bg-slate-700 px-1 rounded text-xs">&#123;&#123;variable&#125;&#125;</code></p>
+                  <p><strong>Common placeholders:</strong></p>
+                  <ul class="text-xs space-y-1 ml-4 list-disc">
+                    <li><code>&#123;&#123;client_name&#125;&#125;</code></li>
+                    <li><code>&#123;&#123;company_name&#125;&#125;</code></li>
+                    <li><code>&#123;&#123;start_date&#125;&#125;</code></li>
+                    <li><code>&#123;&#123;end_date&#125;&#125;</code></li>
+                    <li><code>&#123;&#123;total_amount&#125;&#125;</code></li>
+                    <li><code>&#123;&#123;contract_duration&#125;&#125;</code></li>
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
-
-    <!-- Placeholder Documentation Modal -->
-    <PlaceholderDocumentation
-      v-if="showPlaceholderDocs"
-      @close="showPlaceholderDocs = false"
-    />
-
-    <!-- Delete Confirmation Dialog -->
-    <AlertDialog :open="showDeleteModal" @update:open="showDeleteModal = $event">
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete Template</AlertDialogTitle>
-          <AlertDialogDescription>
-            Are you sure you want to delete "{{ template.name }}"? This action cannot be undone.
-            All contracts using this template will remain unchanged, but you won't be able to create new contracts from this template.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" @click="deleteTemplate">
-            Delete
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   </AppLayout>
 </template>

@@ -1,20 +1,46 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}"  @class(['dark' => ($appearance ?? 'system') == 'dark'])>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        {{-- Inline script to detect system dark mode preference and apply it immediately --}}
+        {{-- Inline script to apply theme immediately to prevent flash --}}
         <script>
             (function() {
-                const appearance = '{{ $appearance ?? "system" }}';
+                // Get theme from cookie (set by our theme system)
+                const getCookie = (name) => {
+                    const value = `; ${document.cookie}`;
+                    const parts = value.split(`; ${name}=`);
+                    if (parts.length === 2) return parts.pop().split(';').shift();
+                    return null;
+                };
 
-                if (appearance === 'system') {
-                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const theme = getCookie('theme') || 'system';
 
-                    if (prefersDark) {
+                const applyTheme = (mode) => {
+                    if (mode === 'dark') {
                         document.documentElement.classList.add('dark');
+                    } else if (mode === 'light') {
+                        document.documentElement.classList.remove('dark');
+                    } else {
+                        // system mode
+                        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                        if (prefersDark) {
+                            document.documentElement.classList.add('dark');
+                        } else {
+                            document.documentElement.classList.remove('dark');
+                        }
                     }
+                };
+
+                applyTheme(theme);
+
+                // Listen for system preference changes if using system theme
+                if (theme === 'system') {
+                    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                        applyTheme('system');
+                    });
                 }
             })();
         </script>

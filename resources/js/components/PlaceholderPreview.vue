@@ -12,9 +12,7 @@ import {
 import { Eye, Loader2 } from 'lucide-vue-next'
 
 interface Props {
-  contract: {
-    data: any
-  }
+  contractUuid: string
   content: string
 }
 
@@ -34,7 +32,7 @@ async function generatePreview() {
   isLoading.value = true
 
   try {
-    const response = await fetch(route('contracts.preview-placeholders', props.contract.data.id), {
+    const response = await fetch(route('contracts.preview-placeholders', props.contractUuid), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

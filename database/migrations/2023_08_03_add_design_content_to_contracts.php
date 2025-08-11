@@ -1,30 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
-    /**
-     * Run the migrations.
-     */
-    public function up(): void
-    {
-        Schema::table('contracts', function (Blueprint $table) {
-            // Add design and content columns for the placeholder handling strategy
-            $table->longText('design')->nullable()->after('status');
-            $table->longText('content')->nullable()->after('design');
-        });
-    }
+return new class extends Migration {
+	public function up(): void
+	{
+		// No-op: superseded by later contract template migrations.
+	}
 
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
-    {
-        Schema::table('contracts', function (Blueprint $table) {
-            $table->dropColumn(['design', 'content']);
-        });
-    }
+	public function down(): void
+	{
+		// No-op
+	}
 };
+

@@ -20,6 +20,7 @@ class BillboardService
   ): LengthAwarePaginator
   {
     $query = $company->billboards()
+  ->with('company')
       ->withCount(['contracts as active_contracts_count' => function ($query) {
         $query->where('status', 'active');
       }])
@@ -32,13 +33,23 @@ class BillboardService
     // Apply filters
     $this->applyFilters($query, $filters);
 
-    // Apply sorting
+    // Apply sorting with whitelist
+    $allowedSorts = [
+      'created_at', 'name', 'code', 'status', 'monthly_rate', 'active_contracts_count'
+    ];
     $sortBy = $filters['sort_by'] ?? 'created_at';
-    $sortDirection = $filters['sort_direction'] ?? 'desc';
+    $sortDirection = strtolower($filters['sort_direction'] ?? 'desc');
+
+    if (!in_array($sortBy, $allowedSorts, true)) {
+      $sortBy = 'created_at';
+    }
+    if (!in_array($sortDirection, ['asc', 'desc'], true)) {
+      $sortDirection = 'desc';
+    }
 
     $query->orderBy($sortBy, $sortDirection);
 
-    return $query->paginate($perPage);
+    return $query->paginate($perPage)->withQueryString();
   }
 
   public function getBillboardStats(Company $company): array
@@ -102,7 +113,7 @@ class BillboardService
     ?string $endDate = null
   ): Collection
   {
-    $query = $company->billboards()->where('status', 'active');
+  $query = $company->billboards()->with('company')->where('status', 'active');
 
     if ($startDate && $endDate) {
       $query->available($startDate, $endDate);
@@ -167,6 +178,7 @@ class BillboardService
   public function searchBillboards(Company $company, string $query): Collection
   {
     return $company->billboards()
+  ->with('company')
       ->where(function ($q) use ($query) {
         $q->where('name', 'like', "%{$query}%")
           ->orWhere('location', 'like', "%{$query}%")
@@ -179,6 +191,8 @@ class BillboardService
 
   public function duplicateBillboard(Billboard $billboard, array $overrides = []): Billboard
   {
+  // Ensure company relation is loaded explicitly to avoid lazy load violations
+  $billboard->loadMissing('company');
     $data = $billboard->toArray();
 
     // Remove unique fields
@@ -192,7 +206,7 @@ class BillboardService
       $data['name'] = $data['name'] . ' (Copy)';
     }
 
-    return $billboard->company->billboards()->create($data);
+  return $billboard->company->billboards()->create($data);
   }
 
   public function bulkUpdateStatus(Company $company, array $billboardIds, string $status): int
@@ -205,6 +219,7 @@ class BillboardService
   public function exportBillboards(Company $company, array $filters = []): Collection
   {
     $query = $company->billboards()
+      ->with('company')
       ->with(['contracts' => function ($query) {
         $query->where('status', 'active');
       }]);
