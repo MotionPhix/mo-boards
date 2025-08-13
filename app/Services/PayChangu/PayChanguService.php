@@ -15,9 +15,10 @@ class PayChanguService
 
     public function __construct()
     {
-        $this->baseUrl = config('paychangu.base_url', 'https://api.paychangu.com');
-        $this->clientId = config('paychangu.client_id');
-        $this->clientSecret = config('paychangu.client_secret');
+    $this->baseUrl = (string) config('paychangu.base_url', 'https://api.paychangu.com');
+    // Cast to string to avoid assigning null to typed properties; validation happens when used
+    $this->clientId = (string) (config('paychangu.client_id') ?? '');
+    $this->clientSecret = (string) (config('paychangu.client_secret') ?? '');
         $this->callbackUrl = url(config('paychangu.callback_url'));
     }
 
@@ -35,7 +36,7 @@ class PayChanguService
                 'amount' => $paymentRequest->amount,
                 'currency' => $paymentRequest->currency,
                 'reference' => $paymentRequest->reference,
-                'callback_url' => $this->callbackUrl,
+                'callback_url' => $paymentRequest->callbackUrl ?? $this->callbackUrl,
                 'return_url' => $paymentRequest->returnUrl,
                 'cancel_url' => $paymentRequest->cancelUrl,
                 'customer' => [
@@ -132,6 +133,10 @@ class PayChanguService
         $token = cache($cacheKey);
         if ($token) {
             return $token;
+        }
+
+        if ($this->clientId === '' || $this->clientSecret === '') {
+            throw new \RuntimeException('PayChangu credentials are not configured. Set PAYCHANGU_CLIENT_ID and PAYCHANGU_CLIENT_SECRET in your .env.');
         }
 
         try {

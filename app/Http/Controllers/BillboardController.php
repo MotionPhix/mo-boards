@@ -25,7 +25,9 @@ final class BillboardController extends Controller
   public function __construct(
     private readonly BillboardService $billboardService
   )
-  {}
+  {
+  // Dependencies injected via constructor.
+  }
 
   public function index(Request $request): Response
   {
@@ -214,16 +216,7 @@ final class BillboardController extends Controller
       ->with('success', "Billboard '{$billboard->name}' updated successfully!");
   }
 
-  public function deleteMedia(Request $request, Billboard $billboard): RedirectResponse
-  {
-    $this->authorize('manageMedia', $billboard);
 
-    $request->validate(['media_id' => 'required|integer']);
-    $media = $billboard->media()->where('id', $request->input('media_id'))->firstOrFail();
-    $media->delete();
-
-    return back()->with('success', 'Image removed.');
-  }
 
   public function destroy(Billboard $billboard): RedirectResponse
   {
@@ -244,101 +237,11 @@ final class BillboardController extends Controller
       ->with('success', "Billboard '{$name}' deleted successfully!");
   }
 
-  public function duplicate(Billboard $billboard): RedirectResponse
-  {
-    $this->authorize('duplicate', $billboard);
 
-    $newBillboard = $this->billboardService->duplicateBillboard($billboard);
 
-    return redirect()->route('billboards.edit', $newBillboard)
-      ->with('success', 'Billboard duplicated successfully! Please review and update the details.');
-  }
 
-  public function bulkUpdate(Request $request): JsonResponse
-  {
-    $this->authorize('bulkUpdate', Billboard::class);
 
-    $request->validate([
-      'billboard_ids' => 'required|array',
-      'billboard_ids.*' => 'exists:billboards,id',
-      'action' => 'required|in:activate,set_available,maintenance,remove',
-    ]);
 
-    $user = Auth::user();
-    $company = $user->currentCompany;
 
-    // If any selected billboard is currently in maintenance, only company owners can change its status
-    $hasMaintenance = Billboard::whereIn('id', $request->billboard_ids)
-      ->where('status', BillboardStatus::MAINTENANCE->value)
-      ->exists();
-    if ($hasMaintenance && !($user?->hasRole('company_owner'))) {
-      return response()->json([
-        'message' => 'Only a company owner can change status while a billboard is in maintenance.',
-      ], 403);
-    }
 
-    $status = match ($request->action) {
-      'activate' => BillboardStatus::ACTIVE->value,
-      'set_available' => BillboardStatus::AVAILABLE->value,
-      'maintenance' => BillboardStatus::MAINTENANCE->value,
-      'remove' => BillboardStatus::REMOVED->value,
-    };
-
-    $updated = $this->billboardService->bulkUpdateStatus(
-      $company,
-      $request->billboard_ids,
-      $status
-    );
-
-    return response()->json([
-      'message' => "Successfully updated {$updated} billboards.",
-      'updated_count' => $updated,
-    ]);
-  }
-
-  public function search(Request $request): JsonResponse
-  {
-    $this->authorize('viewAny', Billboard::class);
-
-    $request->validate([
-      'query' => 'required|string|min:2|max:100',
-    ]);
-
-    $user = Auth::user();
-    $company = $user->currentCompany;
-
-    if (!$company) {
-      return response()->json(['billboards' => []]);
-    }
-
-  $billboards = $this->billboardService->searchBillboards($company, $request->input('query'));
-
-    return response()->json([
-      'billboards' => BillboardResource::collection($billboards),
-    ]);
-  }
-
-  public function export(Request $request): JsonResponse
-  {
-    $this->authorize('exportData', Billboard::class);
-
-    $user = Auth::user();
-    $company = $user->currentCompany;
-
-    if (!$company) {
-      return response()->json(['error' => 'No company selected'], 400);
-    }
-
-    $filters = $request->only([
-      'search', 'status', 'size', 'availability',
-      'min_rate', 'max_rate', 'created_from', 'created_to',
-    ]);
-
-    $data = $this->billboardService->exportBillboards($company, $filters);
-
-    return response()->json([
-      'data' => $data,
-      'filename' => 'billboards_' . now()->format('Y-m-d_H-i-s') . '.csv',
-    ]);
-  }
 }

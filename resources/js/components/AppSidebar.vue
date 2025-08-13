@@ -124,14 +124,6 @@ const navMain = computed(() => {
       show: !!abilities.value.can_view_team,
     },
     {
-      title: 'Companies',
-      url: route('companies.index'),
-      icon: Building,
-      isActive: isActiveRoute('/companies'),
-      // Optionally restrict this to super admins only by replacing with abilities.value.is_super_admin
-      show: !!abilities.value.can_view_companies,
-    },
-    {
       title: 'Settings',
       url: route('companies.settings'),
       icon: Settings,

@@ -1,25 +1,30 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\Auth;
 use App\Enums\BillboardStatus;
+use Closure;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
-class UpdateBillboardRequest extends FormRequest
+final class UpdateBillboardRequest extends FormRequest
 {
     public function authorize(): bool
     {
-    $billboard = request()->route('billboard');
-    $user = Auth::user();
-    return (bool) ($user?->can('update', $billboard) ?? false);
+        $billboard = request()->route('billboard');
+        $user = Auth::user();
+
+        return (bool) ($user?->can('update', $billboard) ?? false);
     }
 
     public function rules(): array
     {
-    $billboard = request()->route('billboard');
-    $user = Auth::user();
+        $billboard = request()->route('billboard');
+        $user = Auth::user();
+
         return [
             'name' => [
                 'required',
@@ -27,7 +32,7 @@ class UpdateBillboardRequest extends FormRequest
                 'max:255',
                 Rule::unique('billboards')
                     ->where('company_id', $user?->current_company_id)
-                    ->ignore($billboard?->id)
+                    ->ignore($billboard?->id),
             ],
             'location' => 'required|string|max:500',
             'latitude' => 'nullable|numeric|between:-90,90',
@@ -39,16 +44,18 @@ class UpdateBillboardRequest extends FormRequest
                 'required',
                 Rule::in(BillboardStatus::values()),
                 // If current status is maintenance, only company_owner can change it
-                function (string $attribute, mixed $value, \Closure $fail) use ($billboard, $user) {
-                    if (!$billboard) return;
+                function (string $attribute, mixed $value, Closure $fail) use ($billboard, $user) {
+                    if (! $billboard) {
+                        return;
+                    }
                     $current = $billboard->status instanceof BillboardStatus ? $billboard->status->value : (string) $billboard->status;
                     $next = is_string($value) ? $value : (string) $value;
                     if ($current === BillboardStatus::MAINTENANCE->value && $next !== BillboardStatus::MAINTENANCE->value) {
-                        if (!($user?->hasRole('company_owner'))) {
+                        if (! ($user?->hasRole('company_owner'))) {
                             $fail('Only a company owner can change status while in maintenance.');
                         }
                     }
-                }
+                },
             ],
             'description' => 'nullable|string|max:1000',
             'images' => 'nullable|array',

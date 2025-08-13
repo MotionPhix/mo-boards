@@ -21,6 +21,8 @@ final class DatabaseSeeder extends Seeder
             RolesAndPermissionsSeeder::class,
             DashboardTestDataSeeder::class,
             SystemTemplatesSeeder::class,
+            BillingPlanSeeder::class,
+            PlanFeatureRulesSeeder::class,
         ]);
     }
 }

@@ -95,7 +95,7 @@ class TemplatePaymentTransaction extends Model
     /**
      * Mark payment as failed
      */
-    public function markAsFailed(string $reason = null, array $payChanguResponse = []): void
+    public function markAsFailed(?string $reason = null, array $payChanguResponse = []): void
     {
         $this->update([
             'status' => 'failed',
@@ -110,7 +110,8 @@ class TemplatePaymentTransaction extends Model
      */
     public static function generateReference(): string
     {
-        return 'TMPL_' . strtoupper(uniqid()) . '_' . time();
+    $random = strtoupper(bin2hex(random_bytes(10)));
+    return 'TMPL_' . $random . '_' . time();
     }
 
     /**

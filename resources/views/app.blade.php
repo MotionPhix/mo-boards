@@ -62,7 +62,10 @@
         <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
 
         @routes
-        @vite(['resources/js/app.ts'])
+        @php($isTesting = app()->environment('testing'))
+        @unless($isTesting)
+            @vite(['resources/js/app.ts'])
+        @endunless
         @inertiaHead
     </head>
     <body class="font-sans antialiased">

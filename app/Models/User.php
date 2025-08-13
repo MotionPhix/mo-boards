@@ -37,6 +37,11 @@ class User extends Authenticatable implements HasMedia
     'password' => 'hashed',
   ];
 
+  // Ensure optional foreign key exists on model to avoid MissingAttributeException
+  protected $attributes = [
+    'current_company_id' => null,
+  ];
+
   public function companies(): BelongsToMany
   {
     return $this->belongsToMany(Company::class)
@@ -117,7 +122,7 @@ class User extends Authenticatable implements HasMedia
     return $this->hasPermissionTo($permission);
   }
 
-  public function registerMediaConversions(Media $media = null): void
+  public function registerMediaConversions(?Media $media = null): void
   {
     $this->addMediaConversion('avatar')
       ->width(150)

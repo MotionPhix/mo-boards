@@ -5,7 +5,7 @@ namespace App\Providers;
 use App\Models\Billboard;
 use App\Models\Company;
 use App\Policies\BillboardPolicy;
-use App\Policies\CompanyTeamPolicy;
+use App\Policies\CompanyPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
 class AuthServiceProvider extends ServiceProvider
@@ -17,7 +17,7 @@ class AuthServiceProvider extends ServiceProvider
      */
     protected $policies = [
         Billboard::class => BillboardPolicy::class,
-        Company::class => CompanyTeamPolicy::class,
+        Company::class => CompanyPolicy::class,
     ];
 
     /**

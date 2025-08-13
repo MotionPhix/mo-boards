@@ -8,7 +8,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -113,114 +112,6 @@ final class RegisteredUserController extends Controller
       return back()->withErrors([
         'general' => 'An error occurred during registration. Please try again.'
       ])->withInput();
-    }
-  }
-
-  /**
-   * Validate step 1 (Personal Information) of the registration form.
-   */
-  public function validateStep1(Request $request): JsonResponse
-  {
-    try {
-      $validated = $request->validate([
-        'name' => 'required|string|max:255',
-        'email' => 'required|string|lowercase|email|max:255|unique:' . User::class,
-        'phone' => 'nullable|string|max:20',
-        'password' => ['required', 'confirmed', Rules\Password::defaults()],
-      ]);
-
-      return response()->json([
-        'valid' => true,
-        'message' => 'Step 1 validation successful'
-      ]);
-    } catch (\Illuminate\Validation\ValidationException $e) {
-      return response()->json([
-        'valid' => false,
-        'errors' => $e->errors(),
-        'message' => 'Validation failed for step 1'
-      ], 422);
-    } catch (\Exception $e) {
-      Log::error('Step 1 validation error', [
-        'error' => $e->getMessage(),
-        'email' => $request->email ?? 'unknown'
-      ]);
-
-      return response()->json([
-        'valid' => false,
-        'errors' => ['general' => ['An unexpected error occurred during validation']],
-        'message' => 'Server error'
-      ], 500);
-    }
-  }
-
-  /**
-   * Validate step 2 (Company Information) of the registration form.
-   */
-  public function validateStep2(Request $request): JsonResponse
-  {
-    try {
-      $validated = $request->validate([
-        'company_name' => 'required|string|max:255',
-        'industry' => 'nullable|string|in:outdoor-advertising,marketing-agency,real-estate,retail,other',
-        'company_size' => 'nullable|string|in:1-10,11-50,51-200,200+',
-        'address' => 'nullable|string|max:1000',
-      ]);
-
-      return response()->json([
-        'valid' => true,
-        'message' => 'Step 2 validation successful'
-      ]);
-    } catch (\Illuminate\Validation\ValidationException $e) {
-      return response()->json([
-        'valid' => false,
-        'errors' => $e->errors(),
-        'message' => 'Validation failed for step 2'
-      ], 422);
-    } catch (\Exception $e) {
-      Log::error('Step 2 validation error', [
-        'error' => $e->getMessage(),
-        'company_name' => $request->company_name ?? 'unknown'
-      ]);
-
-      return response()->json([
-        'valid' => false,
-        'errors' => ['general' => ['An unexpected error occurred during validation']],
-        'message' => 'Server error'
-      ], 500);
-    }
-  }
-
-  /**
-   * Validate step 3 (Subscription Plan) of the registration form.
-   */
-  public function validateStep3(Request $request): JsonResponse
-  {
-    try {
-      $validated = $request->validate([
-        'subscription_plan' => 'required|string|in:starter,professional,enterprise',
-      ]);
-
-      return response()->json([
-        'valid' => true,
-        'message' => 'Step 3 validation successful'
-      ]);
-    } catch (\Illuminate\Validation\ValidationException $e) {
-      return response()->json([
-        'valid' => false,
-        'errors' => $e->errors(),
-        'message' => 'Validation failed for step 3'
-      ], 422);
-    } catch (\Exception $e) {
-      Log::error('Step 3 validation error', [
-        'error' => $e->getMessage(),
-        'subscription_plan' => $request->subscription_plan ?? 'unknown'
-      ]);
-
-      return response()->json([
-        'valid' => false,
-        'errors' => ['general' => ['An unexpected error occurred during validation']],
-        'message' => 'Server error'
-      ], 500);
     }
   }
 }

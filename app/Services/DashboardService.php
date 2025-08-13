@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardService
 {
-    public function getDashboardData(Company $company, User $user = null, array $context = []): array
+    public function getDashboardData(Company $company, ?User $user = null, array $context = []): array
     {
         $canViewFinancial = $context['can_view_financial'] ?? false;
         $canViewAdvancedAnalytics = $context['can_view_advanced_analytics'] ?? false;

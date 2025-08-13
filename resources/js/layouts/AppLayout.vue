@@ -26,7 +26,7 @@ interface Props {
   title?: string
   breadcrumbs?: Array<{
     label: string
-    href?: string
+    href: string
   }>
 }
 
@@ -48,8 +48,9 @@ const computedBreadcrumbs = computed(() => {
   const url = page.url
   const segments = url.split('/').filter(Boolean)
 
-  const breadcrumbs = [
-    { label: 'Dashboard', href: route('dashboard') }
+  const ziggyRoute = (window as any).route as (...args: any[]) => string
+  const breadcrumbs: { label: string; href: string }[] = [
+    { label: 'Dashboard', href: ziggyRoute('dashboard') }
   ]
 
   if (segments.length > 1) {
@@ -67,9 +68,10 @@ const computedBreadcrumbs = computed(() => {
 
     if (sectionMap[section]) {
       const sectionRoute = `${section}.index`
+      const href = (route as any)().has(sectionRoute) ? (route as any)(sectionRoute) : '#'
       breadcrumbs.push({
         label: sectionMap[section],
-        href: route().has(sectionRoute) ? route(sectionRoute) : undefined
+        href
       })
 
       // Add specific page breadcrumb if on a detail/edit page
@@ -82,14 +84,10 @@ const computedBreadcrumbs = computed(() => {
         }
 
         if (actionMap[action]) {
-          breadcrumbs.push({
-            label: actionMap[action]
-          })
+          breadcrumbs.push({ label: actionMap[action], href: href })
         } else if (!isNaN(Number(action))) {
           // If it's an ID, it's likely a show page
-          breadcrumbs.push({
-            label: 'View'
-          })
+          breadcrumbs.push({ label: 'View', href })
         }
       }
     }

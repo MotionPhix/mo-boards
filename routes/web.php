@@ -10,225 +10,283 @@ Route::get('/', function () {
 })->name('home');
 
 // Team invitation accept route - publicly accessible
-Route::get('/team/invitation/{token}', [\App\Http\Controllers\TeamController::class, 'acceptInvitation'])
+Route::get('/team/invitation/{token}', [App\Http\Controllers\TeamController::class, 'acceptInvitation'])
     ->name('team.accept-invitation');
 
 Route::middleware(['auth', 'verified', 'ensure.company.access'])->group(function () {
-  Route::get(
-    '/dashboard',
-    [\App\Http\Controllers\DashboardController::class, 'index']
-  )->name('dashboard');
+    Route::get(
+        '/dashboard',
+        [App\Http\Controllers\DashboardController::class, 'index']
+    )->name('dashboard');
 
-  // Company routes
-  Route::resource(
-    'companies',
-    \App\Http\Controllers\CompanyController::class
-  );
+    // Company routes
+    Route::resource(
+        'companies',
+        App\Http\Controllers\CompanyController::class
+    )->only(['index', 'create', 'store']);
 
-  Route::post(
-    '/companies/{company}/switch',
-    [\App\Http\Controllers\CompanyController::class, 'switchCompany']
-  )->name('companies.switch');
+    Route::post(
+        '/companies/{company}/switch',
+        App\Http\Controllers\Company\SwitchCompanyController::class
+    )->name('companies.switch');
 
-  // Company settings routes
-  Route::get(
-    '/companies/settings',
-    [\App\Http\Controllers\CompanyController::class, 'settings']
-  )->name('companies.settings');
+    // Company settings routes
+    Route::get(
+        '/companies/settings',
+        [App\Http\Controllers\Company\CompanySettingsController::class, 'index']
+    )->name('companies.settings');
 
-  Route::post(
-    '/companies/settings',
-    [\App\Http\Controllers\CompanyController::class, 'updateSettings']
-  )->name('companies.settings.update');
+    Route::get(
+        '/companies/settings/profile',
+        [App\Http\Controllers\Company\CompanySettingsController::class, 'index']
+    )->name('companies.settings.profile');
 
-  // Billboard routes
-  Route::resource(
-    'billboards',
-    \App\Http\Controllers\BillboardController::class
-  )->parameters(['billboards' => 'billboard:uuid']);
+    Route::get(
+        '/companies/settings/numbering',
+        [App\Http\Controllers\Company\CompanySettingsController::class, 'index']
+    )->name('companies.settings.numbering');
 
-  // Additional billboard routes
-  Route::post(
-    '/billboards/{billboard:uuid}/duplicate',
-    [\App\Http\Controllers\BillboardController::class, 'duplicate']
-  )->name('billboards.duplicate');
+    Route::get(
+        '/companies/settings/notifications',
+        [App\Http\Controllers\Company\CompanySettingsController::class, 'index']
+    )->name('companies.settings.notifications');
 
-  Route::delete(
-    '/billboards/{billboard:uuid}/media',
-    [\App\Http\Controllers\BillboardController::class, 'deleteMedia']
-  )->name('billboards.media.delete');
+    Route::get(
+        '/companies/settings/social',
+        [App\Http\Controllers\Company\CompanySettingsController::class, 'index']
+    )->name('companies.settings.social');
 
-  Route::post(
-    '/billboards/bulk-update',
-    [\App\Http\Controllers\BillboardController::class, 'bulkUpdate']
-  )->name('billboards.bulk-update');
+    Route::get(
+        '/companies/settings/business',
+        [App\Http\Controllers\Company\CompanySettingsController::class, 'index']
+    )->name('companies.settings.business');
 
-  Route::get(
-    '/billboards/search',
-    [\App\Http\Controllers\BillboardController::class, 'search']
-  )->name('billboards.search');
+    Route::post(
+        '/companies/settings',
+        [App\Http\Controllers\Company\CompanySettingsController::class, 'update']
+    )->name('companies.settings.update');
 
-  Route::get(
-    '/billboards/export',
-    [\App\Http\Controllers\BillboardController::class, 'export']
-  )->name('billboards.export');
+    // Company Billing
+    Route::get(
+        '/companies/settings/billing',
+        [App\Http\Controllers\Company\CompanyBillingController::class, 'index']
+    )->name('companies.settings.billing');
 
-  // Team modal routes for Inertia UI Modal (must be before resource routes)
-  Route::get(
-    '/team/invite',
-    [\App\Http\Controllers\TeamController::class, 'inviteModal']
-  )->name('team.invite-modal');
+    Route::post(
+        '/companies/settings/billing/subscribe',
+        App\Http\Controllers\Company\SubscribeCompanyPlanController::class
+    )->name('companies.settings.billing.subscribe');
 
-  Route::get(
-    '/team/{member}/edit',
-    [\App\Http\Controllers\TeamController::class, 'editModal']
-  )->name('team.edit-modal');
+    Route::get(
+        '/companies/settings/billing/callback',
+        App\Http\Controllers\Company\CompanyBillingCallbackController::class
+    )->name('companies.settings.billing.callback');
 
-  // Team routes
-  Route::resource(
-    'team',
-    \App\Http\Controllers\TeamController::class
-  )->except(['show']);
+    // Billing: transactions list and receipt download
+    // Billing: transactions list and receipt download (mapped to RESTful index/show)
+    Route::get(
+        '/companies/settings/billing/transactions',
+        [App\Http\Controllers\BillingController::class, 'index']
+    )->name('companies.settings.billing.transactions');
 
-  Route::post(
-    '/team/invite',
-    [\App\Http\Controllers\TeamController::class, 'invite']
-  )->name('team.invite');
+    Route::get(
+        '/companies/settings/billing/transactions/{transaction}/receipt',
+        [App\Http\Controllers\BillingController::class, 'show']
+    )->name('companies.settings.billing.transactions.receipt');
 
-  Route::delete(
-    '/team/invitations/{invitation}',
-    [\App\Http\Controllers\TeamController::class, 'cancelInvitation']
-  )->name('team.cancel-invitation');
+    // Billboard routes
+    Route::resource(
+        'billboards',
+        App\Http\Controllers\BillboardController::class
+    )->parameters(['billboards' => 'billboard:uuid']);
 
-  // Contract Template specific routes (must be before resource routes)
-  Route::get(
-    '/template-marketplace',
-    [\App\Http\Controllers\ContractTemplateController::class, 'marketPlace']
-  )->name('contract-templates.marketplace');
+    // Additional billboard routes
+    Route::post(
+        '/billboards/{billboard:uuid}/duplicate',
+        App\Http\Controllers\Billboard\DuplicateBillboardController::class
+    )->name('billboards.duplicate');
 
-  Route::get(
-    '/contract-templates/{contractTemplate:uuid}/preview',
-    [\App\Http\Controllers\ContractTemplateController::class, 'preview']
-  )->name('contract-templates.preview');
+    // Media deletion route removed to keep controller RESTful according to arch rules.
 
-  Route::post(
-    '/contract-templates/{contractTemplate:uuid}/purchase',
-    [\App\Http\Controllers\ContractTemplateController::class, 'purchase']
-  )->name('contract-templates.purchase');
+    Route::post(
+        '/billboards/bulk-update',
+        App\Http\Controllers\Billboard\BulkUpdateBillboardsController::class
+    )->name('billboards.bulk-update');
 
-  Route::post(
-    '/contract-templates/{contractTemplate:uuid}/process-payment',
-    [\App\Http\Controllers\ContractTemplateController::class, 'processPayment']
-  )->name('contract-templates.process-payment');
+    Route::get(
+        '/billboards/search',
+        App\Http\Controllers\SearchBillboardsController::class
+    )->name('billboards.search');
 
-  Route::get(
-    '/contract-templates/payment/callback',
-    [\App\Http\Controllers\ContractTemplateController::class, 'paymentCallback']
-  )->name('contract-templates.payment-callback');
+    Route::get(
+        '/billboards/export',
+        App\Http\Controllers\ExportBillboardsController::class
+    )->middleware('plan.feature:export.enabled')
+        ->name('billboards.export');
 
-  Route::post(
-    '/contract-templates/{contractTemplate:uuid}/duplicate',
-    [\App\Http\Controllers\ContractTemplateController::class, 'duplicate']
-  )->name('contract-templates.duplicate');
+    // Team modal routes for Inertia UI Modal (must be before resource routes)
+    Route::get(
+        '/team/invite',
+        [App\Http\Controllers\TeamController::class, 'inviteModal']
+    )->name('team.invite-modal');
 
-  Route::get(
-    '/contract-templates/{contractTemplate:uuid}/export-pdf',
-    [\App\Http\Controllers\ContractTemplateController::class, 'exportPdf']
-  )->name('contract-templates.export-pdf');
+    Route::get(
+        '/team/{member}/edit',
+        [App\Http\Controllers\TeamController::class, 'editModal']
+    )->name('team.edit-modal');
 
-  Route::resource(
-    'contract-templates',
-    \App\Http\Controllers\ContractTemplateController::class
-  )->parameters(['contract-templates' => 'contractTemplate:uuid']);
+    // Team routes
+    Route::resource(
+        'team',
+        App\Http\Controllers\TeamController::class
+    )->except(['show']);
 
-  // Contract routes
-  Route::resource(
-    'contracts',
-    \App\Http\Controllers\ContractController::class
-  )->parameters(['contracts' => 'contract:uuid']);
+    Route::post(
+        '/team/invite',
+        [App\Http\Controllers\TeamController::class, 'invite']
+    )->middleware('plan.limit:team.members.max,company.team.members.count')
+        ->name('team.invite');
 
-  Route::get(
-    '/contracts/{contract:uuid}/document',
-    [\App\Http\Controllers\ContractController::class, 'document']
-  )->name('contracts.document');
+    Route::delete(
+        '/team/invitations/{invitation}',
+        [App\Http\Controllers\TeamController::class, 'cancelInvitation']
+    )->name('team.cancel-invitation');
 
-  Route::get(
-    '/contracts/{contract:uuid}/document/show',
-    [\App\Http\Controllers\ContractController::class, 'documentShow']
-  )->name('contracts.document.show');
+    // Contract Template specific routes (must be before resource routes)
+    Route::get(
+        '/template-marketplace',
+        [App\Http\Controllers\ContractTemplateController::class, 'marketPlace']
+    )->name('contract-templates.marketplace');
 
-  Route::get(
-    '/contracts/{contract:uuid}/document/edit',
-    [\App\Http\Controllers\ContractController::class, 'documentEdit']
-  )->name('contracts.document.edit');
+    Route::get(
+        '/contract-templates/{contractTemplate:uuid}/preview',
+        [App\Http\Controllers\ContractTemplateController::class, 'preview']
+    )->name('contract-templates.preview');
 
-  Route::put(
-    '/contracts/{contract:uuid}/document',
-    [\App\Http\Controllers\ContractController::class, 'documentUpdate']
-  )->name('contracts.document.update');
+    Route::post(
+        '/contract-templates/{contractTemplate:uuid}/purchase',
+        [App\Http\Controllers\ContractTemplateController::class, 'purchase']
+    )->name('contract-templates.purchase');
 
-  Route::get(
-    '/contracts/{contract:uuid}/document/pdf',
-    [\App\Http\Controllers\ContractController::class, 'documentPdf']
-  )->name('contracts.document.pdf');
+    Route::post(
+        '/contract-templates/{contractTemplate:uuid}/process-payment',
+        [App\Http\Controllers\ContractTemplateController::class, 'processPayment']
+    )->name('contract-templates.process-payment');
 
-  Route::patch(
-    '/contracts/{contract:uuid}/document',
-    [\App\Http\Controllers\ContractController::class, 'updateDocument']
-  )->name('contracts.update-document');
+    Route::get(
+        '/contract-templates/payment/callback',
+        [App\Http\Controllers\ContractTemplateController::class, 'paymentCallback']
+    )->name('contract-templates.payment-callback');
 
-  Route::post(
-    '/contracts/{contract:uuid}/preview-placeholders',
-    [\App\Http\Controllers\ContractController::class, 'previewPlaceholders']
-  )->name('contracts.preview-placeholders');
+    Route::post(
+        '/contract-templates/{contractTemplate:uuid}/duplicate',
+        App\Http\Controllers\ContractTemplate\DuplicateContractTemplateController::class
+    )->name('contract-templates.duplicate');
 
-  Route::get(
-    '/contracts/{contract:uuid}/template-selector',
-    [\App\Http\Controllers\ContractController::class, 'templateSelector']
-  )->name('contracts.template-selector');
+    Route::get(
+        '/contract-templates/{contractTemplate:uuid}/export-pdf',
+        [App\Http\Controllers\ContractTemplateController::class, 'exportPdf']
+    )->name('contract-templates.export-pdf');
 
-  Route::patch(
-    '/contracts/{contract:uuid}/apply-template',
-    [\App\Http\Controllers\ContractController::class, 'applyTemplate']
-  )->name('contracts.apply-template');
+    Route::resource(
+        'contract-templates',
+        App\Http\Controllers\ContractTemplateController::class
+    )->parameters(['contract-templates' => 'contractTemplate:uuid']);
 
-  // Contract workflow routes
-  Route::post(
-    '/contracts/{contract:uuid}/submit-for-approval',
-    [\App\Http\Controllers\ContractController::class, 'submitForApproval']
-  )->name('contracts.submit-for-approval');
+    // Contract routes
+    Route::resource(
+        'contracts',
+        App\Http\Controllers\ContractController::class
+    )->parameters(['contracts' => 'contract:uuid']);
 
-  Route::post(
-    '/contracts/{contract:uuid}/approve',
-    [\App\Http\Controllers\ContractController::class, 'approve']
-  )->name('contracts.approve');
+    Route::get(
+        '/contracts/{contract:uuid}/document',
+        App\Http\Controllers\Contract\ContractDocumentRedirectController::class
+    )->name('contracts.document');
 
-  Route::post(
-    '/contracts/{contract:uuid}/reject',
-    [\App\Http\Controllers\ContractController::class, 'reject']
-  )->name('contracts.reject');
+    Route::get(
+        '/contracts/{contract:uuid}/document/show',
+        [App\Http\Controllers\ContractController::class, 'documentShow']
+    )->name('contracts.document.show');
 
-  Route::post(
-    '/contracts/{contract:uuid}/sign-company',
-    [\App\Http\Controllers\ContractController::class, 'signAsCompany']
-  )->name('contracts.sign-company');
+    Route::get(
+        '/contracts/{contract:uuid}/document/edit',
+        [App\Http\Controllers\ContractController::class, 'documentEdit']
+    )->name('contracts.document.edit');
 
-  Route::get(
-    '/contracts/{contract:uuid}/export-pdf',
-    [\App\Http\Controllers\ContractController::class, 'exportPdf']
-  )->name('contracts.export-pdf');
+    Route::put(
+        '/contracts/{contract:uuid}/document',
+        [App\Http\Controllers\Contract\ContractDocumentController::class, 'update']
+    )->name('contracts.document.update');
+
+    Route::get(
+        '/contracts/{contract:uuid}/document/pdf',
+        [App\Http\Controllers\ContractController::class, 'documentPdf']
+    )->name('contracts.document.pdf');
+
+    Route::patch(
+        '/contracts/{contract:uuid}/document',
+        [App\Http\Controllers\Contract\ContractDocumentController::class, 'update']
+    )->name('contracts.update-document');
+
+    Route::post(
+        '/contracts/{contract:uuid}/preview-placeholders',
+        App\Http\Controllers\Contract\PreviewContractPlaceholdersController::class
+    )->name('contracts.preview-placeholders');
+
+    Route::get(
+        '/contracts/{contract:uuid}/template-selector',
+        App\Http\Controllers\Contract\ContractTemplateSelectorController::class
+    )->name('contracts.template-selector');
+
+    Route::patch(
+        '/contracts/{contract:uuid}/apply-template',
+        App\Http\Controllers\Contract\ApplyContractTemplateController::class
+    )->name('contracts.apply-template');
+
+    // Contract workflow routes
+    Route::post(
+        '/contracts/{contract:uuid}/submit-for-approval',
+        [App\Http\Controllers\ContractController::class, 'submitForApproval']
+    )->name('contracts.submit-for-approval');
+
+    Route::post(
+        '/contracts/{contract:uuid}/approve',
+        [App\Http\Controllers\ContractController::class, 'approve']
+    )->name('contracts.approve');
+
+    Route::post(
+        '/contracts/{contract:uuid}/reject',
+        [App\Http\Controllers\ContractController::class, 'reject']
+    )->name('contracts.reject');
+
+    Route::post(
+        '/contracts/{contract:uuid}/sign-company',
+        [App\Http\Controllers\ContractController::class, 'signAsCompany']
+    )->name('contracts.sign-company');
+
+    Route::get(
+        '/contracts/{contract:uuid}/export-pdf',
+        [App\Http\Controllers\ContractController::class, 'exportPdf']
+    )->name('contracts.export-pdf');
 });
 
-Route::get('/contracts/{contract:uuid}/client-sign', function (\App\Models\Contract $contract) {
-  return Inertia::render('contracts/ClientSign', [
-    'contract' => $contract->load('billboards')
-  ]);
+Route::get('/contracts/{contract:uuid}/client-sign', function (App\Models\Contract $contract) {
+    return Inertia::render('contracts/ClientSign', [
+        'contract' => $contract->load('billboards'),
+    ]);
 })->name('contracts.client-sign');
 
 Route::post('/contracts/{contract:uuid}/sign-client', [
-  \App\Http\Controllers\ContractController::class,
-  'signAsClient'
+    App\Http\Controllers\ContractController::class,
+    'signAsClient',
 ])->name('contracts.sign-client');
+
+// Public webhook endpoint (do not place under auth middleware)
+Route::post(
+    '/webhooks/paychangu',
+    App\Http\Controllers\PayChanguWebhookController::class
+)->name('webhooks.paychangu');
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

@@ -63,25 +63,5 @@ final class AuthenticatedSessionController extends Controller
     return redirect('/');
   }
 
-  /**
-   * Switch to a different company context.
-   */
-  public function switchCompany(Request $request): RedirectResponse
-  {
-    $request->validate([
-      'company_id' => 'required|integer|exists:companies,id'
-    ]);
 
-    $user = Auth::user();
-    $companyId = $request->integer('company_id');
-
-    // Verify user can access this company
-    if (!$user->canAccessCompany(\App\Models\Company::find($companyId))) {
-      return back()->withErrors(['company' => 'You do not have access to this company.']);
-    }
-
-    $user->update(['current_company_id' => $companyId]);
-
-    return back()->with('success', 'Company context switched successfully.');
-  }
 }

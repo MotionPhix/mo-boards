@@ -10,6 +10,9 @@ use Illuminate\Support\Str;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use App\Traits\HasUuid;
+use App\Models\CompanySubscription;
+use App\Models\CompanyTransaction;
+use App\Models\CompanyBillingAudit;
 
 class Company extends Model implements HasMedia
 {
@@ -141,6 +144,21 @@ class Company extends Model implements HasMedia
     return $this->hasMany(TeamInvitation::class);
   }
 
+  public function subscriptions(): HasMany
+  {
+    return $this->hasMany(CompanySubscription::class);
+  }
+
+  public function transactions(): HasMany
+  {
+    return $this->hasMany(CompanyTransaction::class);
+  }
+
+  public function billingAudits(): HasMany
+  {
+    return $this->hasMany(CompanyBillingAudit::class);
+  }
+
   public function scopeWithActiveContracts($query)
   {
     return $query->whereHas('contracts', function ($q) {
@@ -162,7 +180,7 @@ class Company extends Model implements HasMedia
   /**
    * Get billboards with converted prices in specified currency
    */
-  public function getBillboardsInCurrency(string $currency = null): \Illuminate\Database\Eloquent\Collection
+  public function getBillboardsInCurrency(?string $currency = null): \Illuminate\Database\Eloquent\Collection
   {
     $settingsService = app(\App\Services\CompanySettingsService::class);
     $targetCurrency = $currency ?? $this->currency ?? 'USD';

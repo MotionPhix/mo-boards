@@ -1,0 +1,5 @@
+PAYCHANGU_CLIENT_ID=your_client_id
+PAYCHANGU_CLIENT_SECRET=your_client_secret
+PAYCHANGU_BASE_URL=https://api.paychangu.com
+PAYCHANGU_ENVIRONMENT=sandbox
+PAYCHANGU_WEBHOOK_SECRET=your_webhook_hmac_secret

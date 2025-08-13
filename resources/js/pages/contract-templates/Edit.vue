@@ -125,7 +125,7 @@ const submitForm = () => {
       form.processing = false
     },
     onSuccess: () => {
-      router.visit('/contract-templates')
+  router.visit(route('contract-templates.index'))
     },
   })
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Enums\BillboardStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -97,7 +98,7 @@ class DashboardResource extends JsonResource
 
                 return $mappedActivity;
             }),
-            'top_performing_billboards' => collect($this->resource['top_performing_billboards'])->map(function ($billboard) {
+        'top_performing_billboards' => collect($this->resource['top_performing_billboards'])->map(function ($billboard) {
                 $mappedBillboard = [
                     'id' => $billboard['id'],
                     'name' => $billboard['name'],
@@ -105,8 +106,9 @@ class DashboardResource extends JsonResource
                     'location' => $billboard['location'],
                     'monthly_rate' => number_format((float) $billboard['monthly_rate'], 2),
                     'active_contracts' => $billboard['active_contracts'],
-                    'status' => $billboard['status'],
-                    'status_color' => $this->getStatusColor($billboard['status']),
+            // Normalize enum/string status to a string value for the client
+            'status' => $this->formatBillboardStatus($billboard['status'] ?? null),
+            'status_color' => $this->getStatusColor($billboard['status'] ?? null),
                 ];
 
                 // Only include total_revenue if it exists (user has financial permissions)
@@ -169,14 +171,29 @@ class DashboardResource extends JsonResource
         return $result;
     }
 
-    private function getStatusColor(string $status): string
+    /**
+     * Map billboard status to a UI color token consistent with the model mapping
+     * Accepts enum or string; defaults to 'secondary' when unknown.
+     */
+    private function getStatusColor(BillboardStatus|string|null $status): string
     {
-        return match ($status) {
-            'active' => 'green',
-            'maintenance' => 'yellow',
-            'inactive' => 'red',
-            default => 'gray',
+        $value = $status instanceof BillboardStatus ? $status->value : (string) $status;
+
+        return match ($value) {
+            'active' => 'success',
+            'available' => 'secondary',
+            'maintenance' => 'destructive',
+            'removed' => 'outline',
+            default => 'secondary',
         };
+    }
+
+    /**
+     * Normalize billboard status to string for the API response
+     */
+    private function formatBillboardStatus(BillboardStatus|string|null $status): string
+    {
+        return $status instanceof BillboardStatus ? $status->value : (string) ($status ?? '');
     }
 
     private function getUrgencyLevel(int $daysRemaining): string

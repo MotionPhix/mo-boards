@@ -206,7 +206,7 @@ const getStatusClasses = (template: ContractTemplate): string => {
     ]"
   >
     <!-- Full-width header/hero section -->
-    <div class=" py-8">
+    <div class="py-8 max-w-5xl">
       <div>
         <!-- Header -->
         <div class="flex flex-col gap-6 lg:flex-row lg:justify-between lg:items-center">
@@ -261,7 +261,7 @@ const getStatusClasses = (template: ContractTemplate): string => {
     </div>
 
     <!-- Main content with max-w-5xl constraint -->
-    <div class="max-w-5xl mx-auto space-y-6">
+    <div class="max-w-5xl space-y-6">
       <!-- Filters -->
       <Card class="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm">
         <CardContent class="p-4 sm:p-6">

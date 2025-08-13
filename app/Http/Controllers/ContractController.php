@@ -6,11 +6,9 @@ use App\Http\Resources\ContractResource;
 use App\Models\Billboard;
 use App\Models\Contract;
 use App\Models\ContractTemplate;
-use App\Models\PurchasedTemplate;
 use App\Services\ContractTemplateService;
 use App\Services\PlaceholderService;
 use App\Services\ContractContentService;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -22,8 +20,6 @@ use App\Enums\ContractStatus;
 
 class ContractController extends Controller
 {
-  use AuthorizesRequests;
-
   protected $contentService;
 
   public function __construct(ContractContentService $contentService)
@@ -119,22 +115,16 @@ class ContractController extends Controller
     if (isset($validated['template_id'])) {
       $template = ContractTemplate::find($validated['template_id']);
       if ($template) {
-        $this->contentService->applyTemplateToContract($contract, $template);
+        $contentService = app(ContractContentService::class);
+        $contentService->applyTemplateToContract($template, $contract);
       }
     }
 
-    // Attach billboards with rates
-    foreach ($validated['billboards'] as $billboard) {
-      $contract->billboards()->attach($billboard['id'], [
-        'rate' => $billboard['rate'],
-        'notes' => $billboard['notes'] ?? null,
-      ]);
-    }
-
-    // Generate payment schedule if not one-time
-    if ($validated['payment_terms'] !== 'one_time') {
-      $this->generatePaymentSchedule($contract);
-    }
+    // Attach billboards with rates and notes
+    $billboardData = collect($validated['billboards'])
+      ->mapWithKeys(fn($b) => [$b['id'] => ['rate' => $b['rate'], 'notes' => $b['notes'] ?? null]])
+      ->toArray();
+    $contract->billboards()->sync($billboardData);
 
     return redirect()->route('contracts.show', $contract)
       ->with('success', 'Contract created successfully.');
@@ -144,12 +134,12 @@ class ContractController extends Controller
   {
     $this->authorize('view', $contract);
 
-  // Ensure relationships required for placeholder rendering are available
-  $contract->loadMissing(['billboards', 'company', 'template', 'createdBy', 'payments']);
+    // Ensure relationships required for placeholder rendering are available
+    $contract->loadMissing(['billboards', 'company', 'template', 'createdBy', 'payments']);
 
-  // Prepare processed HTML content for inline preview using PlaceholderService
-  $placeholderService = new PlaceholderService();
-  $processedContent = $placeholderService->replacePlaceholders($contract->design ?? '', $contract);
+    // Prepare processed HTML content for inline preview using PlaceholderService
+    $placeholderService = new PlaceholderService();
+    $processedContent = $placeholderService->replacePlaceholders($contract->design ?? '', $contract);
 
     return Inertia::render('contracts/Show', [
       'contract' => new ContractResource($contract),
@@ -165,12 +155,12 @@ class ContractController extends Controller
 
     $contract->load(['billboards', 'company']);
 
-  $templates = $templateService->getTemplatesForEdit($request);
+    $templates = $templateService->getTemplatesForEdit($request);
 
     return Inertia::render('contracts/Edit', [
       'contract' => new ContractResource($contract),
-  'templatesOwned' => $templates['owned'] ?? [],
-  'templatesPurchased' => $templates['purchased'] ?? [],
+      'templatesOwned' => $templates['owned'] ?? [],
+      'templatesPurchased' => $templates['purchased'] ?? [],
       'billboards' => Billboard::where('company_id', $company->id)
         ->get(['id', 'name', 'code', 'location', 'monthly_rate']),
       'currencyOptions' => \App\Helpers\CurrencyHelper::getDropdownOptions(),
@@ -198,10 +188,10 @@ class ContractController extends Controller
       'billboards.*.id' => 'required|exists:billboards,id',
       'billboards.*.rate' => 'required|numeric|min:0',
       'billboards.*.notes' => 'nullable|string',
-  'terms_and_conditions' => 'nullable|array',
+      'terms_and_conditions' => 'nullable|array',
       'custom_fields_data' => 'nullable|array',
       'notes' => 'nullable|string',
-  'status' => 'sometimes|' . ContractStatus::validationRule(),
+      'status' => 'sometimes|' . ContractStatus::validationRule(),
       'currency' => 'sometimes|string|size:3',
       'design' => 'sometimes|nullable|string',
       'content' => 'sometimes|nullable|string',
@@ -255,32 +245,8 @@ class ContractController extends Controller
       ->with('success', 'Contract deleted successfully.');
   }
 
-  public function document(Contract $contract): RedirectResponse
-  {
-  // Consolidated into contracts.show; redirect for backward compatibility
-  return redirect()->route('contracts.show', $contract->uuid);
-  }
 
-  public function updateDocument(Request $request, Contract $contract)
-  {
-    $this->authorize('update', $contract);
-
-    $request->validate([
-      'content' => 'required|string',
-    ]);
-
-    // Process placeholders in the content
-    $placeholderService = new PlaceholderService();
-    $processedContent = $placeholderService->replacePlaceholders($request->content, $contract);
-
-    $contract->update([
-      'document_content' => $processedContent,
-    ]);
-
-    return redirect()->back()->with('success', 'Document content updated successfully');
-  }
-
-  public function previewPlaceholders(Request $request, Contract $contract)
+  protected function previewPlaceholders(Request $request, Contract $contract)
   {
     $this->authorize('view', $contract);
 
@@ -290,13 +256,13 @@ class ContractController extends Controller
 
     // Process placeholders for preview
     $placeholderService = new PlaceholderService();
-  // Ensure relationships needed for special placeholders are loaded
-  $contract->loadMissing(['billboards', 'company']);
+    // Ensure relationships needed for special placeholders are loaded
+    $contract->loadMissing(['billboards', 'company']);
     $previewContent = $placeholderService->replacePlaceholders($request->content, $contract);
-  $placeholderValues = $placeholderService->getPlaceholderValues($contract);
-  // Ensure special layout placeholders are visible in the summary
-  $placeholderValues['{{billboards_table}}'] = 'Rendered billboards table layout';
-  $placeholderValues['{{billboards_list}}'] = 'Rendered billboards list layout';
+    $placeholderValues = $placeholderService->getPlaceholderValues($contract);
+    // Ensure special layout placeholders are visible in the summary
+    $placeholderValues['{{billboards_table}}'] = 'Rendered billboards table layout';
+    $placeholderValues['{{billboards_list}}'] = 'Rendered billboards list layout';
 
     return response()->json([
       'preview_content' => $previewContent,
@@ -304,7 +270,7 @@ class ContractController extends Controller
     ]);
   }
 
-  public function templateSelector(Request $request, Contract $contract): Response
+  protected function templateSelector(Request $request, Contract $contract): Response
   {
     $this->authorize('view', $contract);
 
@@ -319,7 +285,7 @@ class ContractController extends Controller
     ]);
   }
 
-  public function applyTemplate(Request $request, Contract $contract)
+  protected function applyTemplate(Request $request, Contract $contract)
   {
     $this->authorize('update', $contract);
 
@@ -341,20 +307,20 @@ class ContractController extends Controller
     return redirect()->back()->with('success', 'Template applied successfully');
   }
 
-  public function exportPdf(Contract $contract)
+  protected function exportPdf(Contract $contract)
   {
     $this->authorize('view', $contract);
 
     try {
-  // Ensure required relations are present for placeholder rendering
-  $contract->loadMissing(['billboards', 'company']);
+      // Ensure required relations are present for placeholder rendering
+      $contract->loadMissing(['billboards', 'company']);
 
-  // Render placeholders using the dedicated service (includes billboards_table/list)
-  $placeholderService = new PlaceholderService();
-  $processedContent = $placeholderService->replacePlaceholders($contract->design ?? '', $contract);
+      // Render placeholders using the dedicated service (includes billboards_table/list)
+      $placeholderService = new PlaceholderService();
+      $processedContent = $placeholderService->replacePlaceholders($contract->design ?? '', $contract);
 
-  // Minimal PDF: render only the processed content from the contract design
-  $pdf = Pdf::loadView('pdfs.contract-raw', compact('processedContent'))
+      // Minimal PDF: render only the processed content from the contract design
+      $pdf = Pdf::loadView('pdfs.contract-raw', compact('processedContent'))
         ->setPaper('a4', 'portrait')
         ->setOptions([
           'defaultFont' => 'DejaVu Sans',
@@ -462,7 +428,7 @@ class ContractController extends Controller
   /**
    * Show the document with processed placeholders (read-only view)
    */
-  public function documentShow(Contract $contract): RedirectResponse
+  protected function documentShow(Contract $contract): RedirectResponse
   {
     // Consolidated into contracts.show; redirect for backward compatibility
     return redirect()->route('contracts.show', $contract->uuid);
@@ -471,53 +437,28 @@ class ContractController extends Controller
   /**
    * Show the editable document design form
    */
-  public function documentEdit(Contract $contract): RedirectResponse
+  protected function documentEdit(Contract $contract): RedirectResponse
   {
-  // Consolidated into contracts.edit; redirect for backward compatibility
-  return redirect()->route('contracts.edit', $contract->uuid);
-  }
-
-  /**
-   * Update the contract design
-   */
-  public function documentUpdate(Request $request, Contract $contract)
-  {
-    $this->authorize('update', $contract);
-
-    $validated = $request->validate([
-      'design' => 'required|string',
-      'custom_field_values' => 'nullable|array',
-    ]);
-
-    $contract->update([
-      'design' => $validated['design'],
-      'custom_field_values' => $validated['custom_field_values'] ?? [],
-    ]);
-
-    // Process the content after updating design
-    $contentService = new ContractContentService();
-    $contentService->processContractContent($contract);
-
-    return redirect()->route('contracts.document.show', $contract->uuid)
-      ->with('success', 'Contract document updated successfully.');
+    // Consolidated into contracts.edit; redirect for backward compatibility
+    return redirect()->route('contracts.edit', $contract->uuid);
   }
 
   /**
    * Export document as PDF
    */
-  public function documentPdf(Contract $contract)
+  protected function documentPdf(Contract $contract)
   {
     $this->authorize('view', $contract);
 
     try {
-  // Load required relations
-  $contract->loadMissing(['billboards', 'company']);
+      // Load required relations
+      $contract->loadMissing(['billboards', 'company']);
 
-  // Render placeholders using PlaceholderService
-  $placeholderService = new PlaceholderService();
-  $processedContent = $placeholderService->replacePlaceholders($contract->design ?? '', $contract);
+      // Render placeholders using PlaceholderService
+      $placeholderService = new PlaceholderService();
+      $processedContent = $placeholderService->replacePlaceholders($contract->design ?? '', $contract);
 
-  $pdf = Pdf::loadView('pdfs.contract-raw', compact('processedContent'))
+      $pdf = Pdf::loadView('pdfs.contract-raw', compact('processedContent'))
         ->setPaper('a4', 'portrait')
         ->setOptions([
           'defaultFont' => 'DejaVu Sans',

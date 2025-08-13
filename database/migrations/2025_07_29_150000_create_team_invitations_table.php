@@ -14,9 +14,11 @@ return new class extends Migration
             $table->string('name');
             $table->string('email');
             $table->string('role')->nullable();
-            $table->string('invitation_token')->unique();
+            $table->string('invitation_token', 500)->unique();
             $table->timestamp('expires_at');
             $table->timestamps();
+
+            $table->index(['company_id', 'email']);
         });
     }
 

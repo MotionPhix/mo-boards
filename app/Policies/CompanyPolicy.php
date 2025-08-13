@@ -51,4 +51,45 @@ class CompanyPolicy
     {
         return $user->can('companies.manage_billing') && $user->canAccessCompany($company);
     }
+
+    // Team management abilities within the company context
+    public function inviteTeamMember(User $user, Company $company): bool
+    {
+        return $user->can('team.invite') && $user->canAccessCompany($company);
+    }
+
+    public function updateTeamMember(User $user, Company $company): bool
+    {
+        return $user->can('team.update_roles') && $user->canAccessCompany($company);
+    }
+
+    public function updateTeamPermissions(User $user, Company $company): bool
+    {
+        return $user->can('team.update_permissions') && $user->canAccessCompany($company);
+    }
+
+    public function removeTeamMember(User $user, Company $company): bool
+    {
+        return $user->can('team.remove') && $user->canAccessCompany($company);
+    }
+
+    public function viewTeamMembers(User $user, Company $company): bool
+    {
+        return $user->can('team.view_any') && $user->canAccessCompany($company);
+    }
+
+    public function viewTeamMember(User $user, Company $company): bool
+    {
+        return $user->can('team.view') && $user->canAccessCompany($company);
+    }
+
+    public function manageInvitations(User $user, Company $company): bool
+    {
+        return $user->can('team.manage_invitations') && $user->canAccessCompany($company);
+    }
+
+    public function viewTeamActivity(User $user, Company $company): bool
+    {
+        return $user->can('team.view_activity') && $user->canAccessCompany($company);
+    }
 }

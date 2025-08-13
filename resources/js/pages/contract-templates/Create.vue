@@ -247,12 +247,12 @@ const submitForm = () => {
     price: form.price,
   }
 
-  router.post('/contract-templates', formData, {
+  router.post(route('contract-templates.store'), formData, {
     onFinish: () => {
       form.processing = false
     },
     onSuccess: () => {
-      router.visit('/contract-templates')
+  router.visit(route('contract-templates.index'))
     },
   })
 }
@@ -294,7 +294,7 @@ function insertPlaceholder(text: string) {
   >
     <!-- Full-width header/hero section -->
     <div class="bg-gradient-to-r from-emerald-50 to-blue-50 dark:from-slate-900 dark:to-slate-800 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-8">
-      <div class="max-w-5xl mx-auto">
+      <div class="max-w-5xl">
         <!-- Header -->
         <div class="flex flex-col gap-6 lg:flex-row lg:justify-between lg:items-center">
           <!-- Title Section -->
@@ -339,7 +339,7 @@ function insertPlaceholder(text: string) {
     </div>
 
     <!-- Main content with max-w-5xl constraint -->
-  <div class="max-w-5xl mx-auto space-y-6">
+  <div class="max-w-5xl space-y-6">
       <!-- Form Errors -->
       <div v-if="props.errors && Object.keys(props.errors).length > 0" class="space-y-2">
         <Alert variant="destructive" v-for="(error, field) in props.errors" :key="field">

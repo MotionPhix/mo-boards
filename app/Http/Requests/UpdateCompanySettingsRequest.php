@@ -1,10 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class UpdateCompanySettingsRequest extends FormRequest
+final class UpdateCompanySettingsRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -21,8 +23,10 @@ class UpdateCompanySettingsRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            // Company branding and contact information
+        $section = $this->input('section');
+
+        // Base optional fields shared across sections
+        $profileRules = [
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
             'address' => 'nullable|string|max:500',
             'city' => 'nullable|string|max:100',
@@ -32,50 +36,58 @@ class UpdateCompanySettingsRequest extends FormRequest
             'phone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:255',
             'website' => 'nullable|url|max:255',
+            'company_description' => 'nullable|string|max:1000',
+        ];
 
-            // Contract number formatting
+        $numberingRules = [
             'contract_number_prefix' => 'nullable|string|max:10',
             'contract_number_suffix' => 'nullable|string|max:10',
             'contract_number_format' => 'required|in:sequential,date_based,custom',
             'contract_number_length' => 'required|integer|min:3|max:10',
             'contract_number_start' => 'required|integer|min:1',
-
-            // Billboard code formatting
             'billboard_code_prefix' => 'nullable|string|max:10',
             'billboard_code_suffix' => 'nullable|string|max:10',
             'billboard_code_format' => 'required|in:sequential,location_based,custom',
             'billboard_code_length' => 'required|integer|min:2|max:8',
             'billboard_code_start' => 'required|integer|min:1',
+        ];
 
-            // Business settings
-            'timezone' => 'required|string|max:50',
-            'currency' => 'required|string|size:3',
-            'date_format' => 'required|string|max:20',
-            'time_format' => 'required|string|max:10',
-
-            // Billing and payment settings
-            'payment_terms_days' => 'required|integer|min:1|max:365',
-            'late_fee_percentage' => 'nullable|numeric|min:0|max:100',
-            'auto_generate_invoices' => 'boolean',
-            'tax_id' => 'nullable|string|max:50',
-            'default_tax_rate' => 'nullable|numeric|min:0|max:100',
-
-            // Notification settings
-            'notification_settings' => 'nullable|array',
+        $notificationRules = [
+            'notification_settings' => 'required|array',
             'notification_settings.email_contracts' => 'boolean',
             'notification_settings.email_payments' => 'boolean',
             'notification_settings.email_billboards' => 'boolean',
             'notification_settings.email_team' => 'boolean',
             'notification_settings.slack_webhook' => 'nullable|url',
+        ];
 
-            // Additional business information
-            'company_description' => 'nullable|string|max:1000',
-            'social_media_links' => 'nullable|array',
+        $socialRules = [
+            'social_media_links' => 'required|array',
             'social_media_links.facebook' => 'nullable|url',
             'social_media_links.twitter' => 'nullable|url',
             'social_media_links.linkedin' => 'nullable|url',
             'social_media_links.instagram' => 'nullable|url',
         ];
+
+        $businessRules = [
+            'timezone' => 'required|string|max:100',
+            'currency' => 'required|string|size:3',
+            'date_format' => 'required|string|max:20',
+            'time_format' => 'required|string|max:20',
+            'payment_terms_days' => 'required|integer|min:1|max:365',
+            'late_fee_percentage' => 'nullable|numeric|min:0|max:100',
+            'auto_generate_invoices' => 'boolean',
+            'tax_id' => 'nullable|string|max:100',
+            'default_tax_rate' => 'nullable|numeric|min:0|max:100',
+        ];
+
+        return match ($section) {
+            'numbering' => $numberingRules,
+            'notifications' => $notificationRules,
+            'social' => $socialRules,
+            'business' => $businessRules,
+            default => $profileRules, // 'profile' or unspecified
+        };
     }
 
     public function messages(): array

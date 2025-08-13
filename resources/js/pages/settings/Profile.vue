@@ -18,15 +18,16 @@ interface Props {
 
 defineProps<Props>();
 
+const ziggyRoute = (window as any).route as (...args: any[]) => string;
 const breadcrumbs: BreadcrumbItem[] = [
     {
         label: 'Profile settings',
-        href: '/settings/profile',
+        href: ziggyRoute('profile.edit'),
     },
 ];
 
-const page = usePage<SharedData>();
-const user = page.props.auth.user as User;
+const page = usePage();
+const user = (page.props as any).auth.user as User;
 
 const form = useForm({
     name: user.name,
@@ -73,7 +74,7 @@ const submit = () => {
                         <p class="-mt-4 text-sm text-muted-foreground">
                             Your email address is unverified.
                             <Link
-                                :href="route('verification.send')"
+                                :href="ziggyRoute('verification.send')"
                                 method="post"
                                 as="button"
                                 class="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:!decoration-current dark:decoration-neutral-500"

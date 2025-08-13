@@ -198,10 +198,10 @@ const createRevenueChartOptions = (categories: string[]) => ({
     strokeDashArray: 4,
   },
   theme: {
-    mode: isDark() ? 'dark' : 'light'
+    mode: isDark.value ? 'dark' : 'light'
   },
   tooltip: {
-    theme: isDark() ? 'dark' : 'light',
+    theme: isDark.value ? 'dark' : 'light',
     y: {
       formatter: (val: number) => `$${val.toLocaleString()}`
     }
@@ -239,7 +239,7 @@ const createDonutChartOptions = (labels: string[]) => ({
     formatter: (val: number) => `${val.toFixed(1)}%`,
   },
   theme: {
-    mode: isDark() ? 'dark' : 'light'
+    mode: isDark.value ? 'dark' : 'light'
   }
 })
 
@@ -305,7 +305,7 @@ defineExpose({
   </Head>
 
   <AppLayout :title="'Dashboard'" :breadcrumbs="breadcrumbs">
-    <div class="mx-auto max-w-4xl w-full px-4 sm:px-6 lg:px-8">
+    <div class="max-w-5xl">
       <!-- Dashboard Header -->
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>

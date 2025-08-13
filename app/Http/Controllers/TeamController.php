@@ -7,20 +7,18 @@ namespace App\Http\Controllers;
 use App\Http\Requests\TeamInvitationRequest;
 use App\Http\Requests\TeamMemberUpdateRequest;
 use App\Http\Resources\TeamResource;
-use App\Models\Company;
 use App\Models\TeamInvitation;
 use App\Models\User;
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use Spatie\Permission\Models\Role;
 
-class TeamController extends Controller
+final class TeamController extends Controller
 {
     public function index(Request $request): Response
     {
@@ -38,12 +36,12 @@ class TeamController extends Controller
                     'name' => $user->name,
                     'email' => $user->email,
                     'role' => $user->pivot->role,
-                    'is_owner' => (bool)$user->pivot->is_owner,
+                    'is_owner' => (bool) $user->pivot->is_owner,
                     'avatar' => $user->profile_photo_url,
                     'joined_at' => $user->pivot->created_at->format('M d, Y'),
                     'can' => [
                         'edit' => $request->user()->can('updateTeamMember', $company),
-                        'delete' => $request->user()->can('removeTeamMember', $company) && !$user->pivot->is_owner && $request->user()->id !== $user->id,
+                        'delete' => $request->user()->can('removeTeamMember', $company) && ! $user->pivot->is_owner && $request->user()->id !== $user->id,
                     ],
                 ];
             });
@@ -95,105 +93,6 @@ class TeamController extends Controller
         ]);
     }
 
-    public function inviteModal(Request $request): Response
-    {
-        $company = $request->user()->currentCompany;
-
-        // Filter roles for team invitations - exclude super_admin and company_owner
-        // Super admins are created via tinker only, company owners are the ones inviting
-        $roles = Role::whereNotIn('name', ['super_admin', 'company_owner'])
-            ->get()
-            ->map(function ($role) {
-                return [
-                    'id' => $role->id,
-                    'name' => $role->name,
-                    'description' => $this->getRoleDescription($role->name),
-                    'permissions' => $role->load('permissions')->pluck('name'),
-                ];
-            });
-
-        return Inertia::render('team/InviteUserModal', [
-            'roles' => $roles,
-        ]);
-    }
-
-    public function editModal(Request $request, User $member): Response
-    {
-        $company = $request->user()->currentCompany;
-
-        // Get the member with pivot data
-        $memberWithPivot = $company->users()->where('users.id', $member->id)->first();
-
-        // Check if the member belongs to the current company
-        if (!$memberWithPivot) {
-            abort(404);
-        }
-
-        // Filter roles for team invitations - exclude super_admin and company_owner
-        // Super admins are created via tinker only, company owners are the ones inviting
-        $roles = Role::whereNotIn('name', ['super_admin', 'company_owner'])
-            ->get()
-            ->map(function ($role) {
-                return [
-                    'id' => $role->id,
-                    'name' => $role->name,
-                    'description' => $this->getRoleDescription($role->name),
-                    'permissions' => $role->load('permissions')->pluck('name'),
-                ];
-            });
-
-        $memberData = [
-            'id' => $memberWithPivot->id,
-            'name' => $memberWithPivot->name,
-            'email' => $memberWithPivot->email,
-            'role' => $memberWithPivot->pivot->role,
-            'is_owner' => (bool)$memberWithPivot->pivot->is_owner,
-            'avatar' => $memberWithPivot->profile_photo_url,
-            'joined_at' => $memberWithPivot->pivot->created_at->format('M d, Y'),
-            'can' => [
-                'edit' => $request->user()->can('updateTeamMember', $company),
-                'delete' => $request->user()->can('removeTeamMember', $company) && !$memberWithPivot->pivot->is_owner && $request->user()->id !== $memberWithPivot->id,
-            ],
-        ];
-
-        return Inertia::render('team/EditMemberModal', [
-            'member' => $memberData,
-            'roles' => $roles,
-        ]);
-    }
-
-    public function invite(TeamInvitationRequest $request): RedirectResponse
-    {
-        $company = $request->user()->currentCompany;
-
-        // Check if the user already exists
-        $existingUser = User::where('email', $request->email)->first();
-
-        if ($existingUser) {
-            // If user already belongs to the company, redirect with an error
-            if ($company->users()->where('users.id', $existingUser->id)->exists()) {
-                return redirect()->route('team.index')
-                    ->with('error', 'This user is already a member of your team.');
-            }
-
-            // Create an invitation for the existing user
-            $invitation = TeamInvitation::createInvitation($company, $request->validated());
-
-            // Send invitation email
-            $existingUser->notify(new \App\Notifications\TeamInvitationNotification($invitation, $request->user()));
-        } else {
-            // Create an invitation for a new user
-            $invitation = TeamInvitation::createInvitation($company, $request->validated());
-
-            // Send invitation email with account setup link
-            \Illuminate\Support\Facades\Notification::route('mail', $request->email)
-                ->notify(new \App\Notifications\TeamInvitationNotification($invitation, $request->user()));
-        }
-
-        return redirect()->route('team.index')
-            ->with('success', 'Invitation has been sent successfully.');
-    }
-
     public function update(TeamMemberUpdateRequest $request, User $member): RedirectResponse
     {
         $company = $request->user()->currentCompany;
@@ -235,7 +134,106 @@ class TeamController extends Controller
         return redirect()->route('team.index')->with('success', 'Team member has been removed.');
     }
 
-    public function acceptInvitation(Request $request, string $token): RedirectResponse
+    protected function inviteModal(Request $request): Response
+    {
+        $company = $request->user()->currentCompany;
+
+        // Filter roles for team invitations - exclude super_admin and company_owner
+        // Super admins are created via tinker only, company owners are the ones inviting
+        $roles = Role::whereNotIn('name', ['super_admin', 'company_owner'])
+            ->get()
+            ->map(function ($role) {
+                return [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'description' => $this->getRoleDescription($role->name),
+                    'permissions' => $role->load('permissions')->pluck('name'),
+                ];
+            });
+
+        return Inertia::render('team/InviteUserModal', [
+            'roles' => $roles,
+        ]);
+    }
+
+    protected function editModal(Request $request, User $member): Response
+    {
+        $company = $request->user()->currentCompany;
+
+        // Get the member with pivot data
+        $memberWithPivot = $company->users()->where('users.id', $member->id)->first();
+
+        // Check if the member belongs to the current company
+        if (! $memberWithPivot) {
+            abort(404);
+        }
+
+        // Filter roles for team invitations - exclude super_admin and company_owner
+        // Super admins are created via tinker only, company owners are the ones inviting
+        $roles = Role::whereNotIn('name', ['super_admin', 'company_owner'])
+            ->get()
+            ->map(function ($role) {
+                return [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'description' => $this->getRoleDescription($role->name),
+                    'permissions' => $role->load('permissions')->pluck('name'),
+                ];
+            });
+
+        $memberData = [
+            'id' => $memberWithPivot->id,
+            'name' => $memberWithPivot->name,
+            'email' => $memberWithPivot->email,
+            'role' => $memberWithPivot->pivot->role,
+            'is_owner' => (bool) $memberWithPivot->pivot->is_owner,
+            'avatar' => $memberWithPivot->profile_photo_url,
+            'joined_at' => $memberWithPivot->pivot->created_at->format('M d, Y'),
+            'can' => [
+                'edit' => $request->user()->can('updateTeamMember', $company),
+                'delete' => $request->user()->can('removeTeamMember', $company) && ! $memberWithPivot->pivot->is_owner && $request->user()->id !== $memberWithPivot->id,
+            ],
+        ];
+
+        return Inertia::render('team/EditMemberModal', [
+            'member' => $memberData,
+            'roles' => $roles,
+        ]);
+    }
+
+    protected function invite(TeamInvitationRequest $request): RedirectResponse
+    {
+        $company = $request->user()->currentCompany;
+
+        // Check if the user already exists
+        $existingUser = User::where('email', $request->email)->first();
+
+        if ($existingUser) {
+            // If user already belongs to the company, redirect with an error
+            if ($company->users()->where('users.id', $existingUser->id)->exists()) {
+                return redirect()->route('team.index')
+                    ->with('error', 'This user is already a member of your team.');
+            }
+
+            // Create an invitation for the existing user
+            $invitation = TeamInvitation::createInvitation($company, $request->validated());
+
+            // Send invitation email
+            $existingUser->notify(new \App\Notifications\TeamInvitationNotification($invitation, $request->user()));
+        } else {
+            // Create an invitation for a new user
+            $invitation = TeamInvitation::createInvitation($company, $request->validated());
+
+            // Send invitation email with account setup link
+            Notification::route('mail', $request->email)
+                ->notify(new \App\Notifications\TeamInvitationNotification($invitation, $request->user()));
+        }
+
+        return redirect()->route('team.index')
+            ->with('success', 'Invitation has been sent successfully.');
+    }
+
+    protected function acceptInvitation(Request $request, string $token): RedirectResponse
     {
         try {
             // Find invitation by token
@@ -243,7 +241,7 @@ class TeamController extends Controller
                 ->where('expires_at', '>', Carbon::now())
                 ->first();
 
-            if (!$invitation) {
+            if (! $invitation) {
                 return redirect()->route('login')
                     ->with('error', 'The invitation link has expired or is invalid.');
             }
@@ -263,6 +261,7 @@ class TeamController extends Controller
                 // Check if already a member
                 if ($company->users()->where('users.id', $user->id)->exists()) {
                     $invitation->delete();
+
                     return redirect()->route('dashboard')
                         ->with('info', "You are already a member of {$company->name}.");
                 }
@@ -284,27 +283,27 @@ class TeamController extends Controller
 
                 return redirect()->route('dashboard')
                     ->with('success', "You've successfully joined {$company->name}.");
-            } else {
-                // User is not logged in
-                // Store invitation data in session securely
-                session([
-                    'invitation_token' => $token,
-                    'invitation_email' => $invitation->email,
-                    'invitation_name' => $invitation->name,
-                    'company_name' => $company->name
-                ]);
-
-                // Redirect to special registration route for invited users
-                return redirect()->route('register.invited')
-                    ->with('info', "Please create an account to join {$company->name}.");
             }
-        } catch (\Exception $e) {
+            // User is not logged in
+            // Store invitation data in session securely
+            session([
+                'invitation_token' => $token,
+                'invitation_email' => $invitation->email,
+                'invitation_name' => $invitation->name,
+                'company_name' => $company->name,
+            ]);
+
+            // Redirect to special registration route for invited users
+            return redirect()->route('register.invited')
+                ->with('info', "Please create an account to join {$company->name}.");
+
+        } catch (Exception $e) {
             return redirect()->route('login')
                 ->with('error', 'There was a problem with your invitation. Please contact the company administrator.');
         }
     }
 
-    public function cancelInvitation(TeamInvitation $invitation): RedirectResponse
+    protected function cancelInvitation(TeamInvitation $invitation): RedirectResponse
     {
         $company = request()->user()->currentCompany;
 

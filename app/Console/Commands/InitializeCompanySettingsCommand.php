@@ -6,7 +6,7 @@ use App\Models\Company;
 use App\Services\CompanySettingsService;
 use Illuminate\Console\Command;
 
-class InitializeCompanySettings extends Command
+class InitializeCompanySettingsCommand extends Command
 {
   /**
    * The name and signature of the console command.

@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import UserInfo from '@/components/UserInfo.vue';
-import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import type { User } from '@/types';
-import { Link } from '@inertiajs/vue3';
-import { LogOut, Settings } from 'lucide-vue-next';
+import UserInfo from '@/components/UserInfo.vue'
+import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
+import type { User } from '@/types'
+import { Link } from '@inertiajs/vue3'
+import { LogOut, Settings, Building, CreditCard } from 'lucide-vue-next'
 
 interface Props {
-    user: User;
+    user: User
 }
 
-defineProps<Props>();
+defineProps<Props>()
+const ziggyRoute = (window as any).route as (...args: any[]) => string
 </script>
 
 <template>
@@ -19,17 +20,17 @@ defineProps<Props>();
         </div>
     </DropdownMenuLabel>
     <DropdownMenuSeparator />
-    <DropdownMenuGroup>
-        <DropdownMenuItem :as-child="true">
-            <Link class="block w-full" :href="route('profile.edit')" as="button">
-                <Settings class="mr-2 h-4 w-4" />
-                Settings
-            </Link>
-        </DropdownMenuItem>
-    </DropdownMenuGroup>
+        <DropdownMenuGroup>
+            <DropdownMenuItem :as-child="true">
+                <Link class="block w-full" :href="ziggyRoute('profile.edit')" as="button">
+                    <Settings class="mr-2 h-4 w-4" />
+                    Profile & Preferences
+                </Link>
+            </DropdownMenuItem>
+        </DropdownMenuGroup>
     <DropdownMenuSeparator />
     <DropdownMenuItem :as-child="true">
-        <Link class="block w-full" method="post" :href="route('logout')" as="button">
+        <Link class="block w-full" method="post" :href="ziggyRoute('logout')" as="button">
             <LogOut class="mr-2 h-4 w-4" />
             Log out
         </Link>

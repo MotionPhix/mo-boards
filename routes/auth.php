@@ -19,10 +19,10 @@ Route::middleware('guest')->group(function () {
 
     Route::post('register', [RegisteredUserController::class, 'store']);
 
-    // Registration step validation routes
-    Route::post('register/validate-step-1', [RegisteredUserController::class, 'validateStep1']);
-    Route::post('register/validate-step-2', [RegisteredUserController::class, 'validateStep2']);
-    Route::post('register/validate-step-3', [RegisteredUserController::class, 'validateStep3']);
+    // Registration step validation routes (invokable controllers)
+    Route::post('register/validate-step-1', \App\Http\Controllers\Auth\ValidateRegistrationStep1Controller::class);
+    Route::post('register/validate-step-2', \App\Http\Controllers\Auth\ValidateRegistrationStep2Controller::class);
+    Route::post('register/validate-step-3', \App\Http\Controllers\Auth\ValidateRegistrationStep3Controller::class);
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');

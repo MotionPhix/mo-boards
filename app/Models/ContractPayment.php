@@ -39,7 +39,7 @@ class ContractPayment extends Model
   }
 
   // Mark payment as paid
-  public function markAsPaid(string $paymentMethod = null, string $referenceNumber = null): void
+  public function markAsPaid(?string $paymentMethod = null, ?string $referenceNumber = null): void
   {
     $this->update([
       'status' => 'paid',

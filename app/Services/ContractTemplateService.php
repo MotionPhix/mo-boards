@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\ContractTemplate;
-use App\Http\Resources\ContractTemplateResource;
+
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
@@ -80,8 +80,30 @@ class ContractTemplateService
         $offset = ($currentPage - 1) * $perPage;
         $items = $allTemplates->slice($offset, $perPage)->values();
 
-        // Transform items using resource collection
-        $transformedItems = ContractTemplateResource::collection($items);
+        // Transform items into plain arrays to avoid using HTTP Resources in services
+        $transformedItems = $items->map(function ($t) {
+            return [
+                'id' => $t->id,
+                'uuid' => $t->uuid,
+                'name' => $t->name,
+                'description' => $t->description,
+                'content' => $t->content,
+                'price' => $t->price,
+                'formatted_price' => $t->price ? number_format($t->price, 2) : null,
+                'is_active' => $t->is_active,
+                'is_premium' => $t->is_premium ?? false,
+                'is_system_template' => $t->is_system_template ?? false,
+                'category' => $t->category,
+                'tags' => $t->tags ? (is_array($t->tags) ? $t->tags : json_decode($t->tags, true)) : [],
+                'default_terms' => $t->default_terms ?? [],
+                'custom_fields' => $t->custom_fields ?? [],
+                'features' => $t->features,
+                'preview_image' => $t->preview_image,
+                'contracts_count' => isset($t->contracts_count) ? $t->contracts_count : null,
+                'created_at' => $t->created_at,
+                'updated_at' => $t->updated_at,
+            ];
+        });
 
         // Create pagination structure manually to match Laravel's format
         $from = $total > 0 ? $offset + 1 : null;

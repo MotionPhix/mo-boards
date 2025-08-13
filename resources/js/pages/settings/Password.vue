@@ -10,11 +10,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { type BreadcrumbItem } from '@/types';
+const ziggyRoute = (window as any).route as (...args: any[]) => string;
 
 const breadcrumbItems: BreadcrumbItem[] = [
     {
         label: 'Password settings',
-        href: '/settings/password',
+        href: ziggyRoute('password.edit'),
     },
 ];
 
