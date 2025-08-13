@@ -1,23 +1,25 @@
 <script setup lang="ts">
-import AppLayout from '@/layouts/AppLayout.vue'
-import CompanySettingsLayout from '@/layouts/company/SettingsLayout.vue'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { ImageIcon, Loader2 } from 'lucide-vue-next'
-import { useForm } from '@inertiajs/vue3'
-import { ref } from 'vue'
+import AppLayout from '@/layouts/AppLayout.vue';
+import CompanySettingsLayout from '@/layouts/company/SettingsLayout.vue';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { ImageIcon, Loader2 } from 'lucide-vue-next';
+import { useForm } from '@inertiajs/vue3';
+import { ref } from 'vue';
+import { toast } from 'vue-sonner';
 
 interface Props {
-  company: Record<string, any>
-  options: Record<string, any>
+  company: Record<string, any>;
+  options: Record<string, any>;
 }
-const props = defineProps<Props>()
 
-const logoInput = ref<HTMLInputElement | null>(null)
-const logoPreview = ref<string | null>(null)
+const props = defineProps<Props>();
+
+const logoInput = ref<HTMLInputElement | null>(null);
+const logoPreview = ref<string | null>(null);
 
 const form = useForm({
   section: 'profile',
@@ -31,30 +33,35 @@ const form = useForm({
   website: props.company?.website || '',
   company_description: props.company?.company_description || '',
   logo: null as File | null,
-})
+});
 
 const handleLogoChange = (event: Event) => {
-  const input = event.target as HTMLInputElement | null
-  const file = input?.files?.[0]
+  const input = event.target as HTMLInputElement | null;
+  const file = input?.files?.[0];
   if (file) {
-    form.logo = file
-    const reader = new FileReader()
+    form.logo = file;
+    const reader = new FileReader();
     reader.onload = (e: ProgressEvent<FileReader>) => {
-      const result = e.target?.result
-      logoPreview.value = typeof result === 'string' ? result : null
-    }
-    reader.readAsDataURL(file)
+      const result = e.target?.result;
+      logoPreview.value = typeof result === 'string' ? result : null;
+    };
+    reader.readAsDataURL(file);
   }
-}
-const triggerLogoPicker = () => logoInput.value?.click()
+};
+const triggerLogoPicker = () => logoInput.value?.click();
 
 const submit = () => {
-  form.post(route('companies.settings.update'), { preserveScroll: true })
-}
+  form.post(route('companies.settings.update'), {
+    preserveScroll: true,
+    onSuccess: () => {
+      toast.success('Profile updated successfully!');
+    },
+  });
+};
 
 // Local helper to get relative URLs from Ziggy
 const r = (name: string, params?: Record<string, any>, absolute = false): string =>
-  ((window as any).route?.(name, params, absolute) as string) ?? '#'
+  ((window as any).route?.(name, params, absolute) as string) ?? '#';
 </script>
 
 <template>
@@ -64,8 +71,7 @@ const r = (name: string, params?: Record<string, any>, absolute = false): string
       { label: 'Companies', href: r('companies.index') },
       { label: 'Settings', href: r('companies.settings') },
       { label: 'Profile', href: r('companies.settings.profile') },
-    ]"
-  >
+    ]">
     <CompanySettingsLayout>
       <form @submit.prevent="submit" enctype="multipart/form-data">
         <input type="hidden" name="section" value="profile" />
@@ -79,24 +85,24 @@ const r = (name: string, params?: Record<string, any>, absolute = false): string
               <div>
                 <Label for="logo">Company Logo</Label>
                 <div class="mt-2 flex items-center gap-4">
-                  <div class="w-20 h-20 border-2 border-dashed border-muted-foreground/30 rounded-lg flex items-center justify-center bg-muted">
+                  <div class="border-muted-foreground/30 bg-muted flex h-20 w-20 items-center justify-center rounded-lg border-2 border-dashed">
                     <img
                       v-if="logoPreview || company?.logo_url"
                       :src="logoPreview || company?.logo_url"
                       alt="Company Logo"
-                      class="w-full h-full object-cover rounded-lg"
+                      class="h-full w-full rounded-lg object-cover"
                     />
-                    <ImageIcon v-else class="w-8 h-8 text-muted-foreground" />
+                    <ImageIcon v-else class="text-muted-foreground h-8 w-8" />
                   </div>
                   <div>
                     <input ref="logoInput" id="logo" type="file" accept="image/*" @change="handleLogoChange" class="hidden" />
                     <Button type="button" variant="outline" @click="triggerLogoPicker">
                       {{ company?.has_logo ? 'Change Logo' : 'Choose Logo' }}
                     </Button>
-                    <p class="text-xs text-muted-foreground mt-1">PNG, JPG, GIF, SVG up to 2MB</p>
+                    <p class="text-muted-foreground mt-1 text-xs">PNG, JPG, GIF, SVG up to 2MB</p>
                   </div>
                 </div>
-                <p v-if="form.errors.logo" class="text-sm text-red-600 mt-1">{{ form.errors.logo }}</p>
+                <p v-if="form.errors.logo" class="mt-1 text-sm text-red-600">{{ form.errors.logo }}</p>
               </div>
 
               <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -112,7 +118,14 @@ const r = (name: string, params?: Record<string, any>, absolute = false): string
                 </div>
                 <div>
                   <Label for="website">Website</Label>
-                  <Input id="website" v-model="form.website" type="url" placeholder="https://example.com" class="mt-1" :class="{ 'border-red-500': form.errors.website }" />
+                  <Input
+                    id="website"
+                    v-model="form.website"
+                    type="url"
+                    placeholder="https://example.com"
+                    class="mt-1"
+                    :class="{ 'border-red-500': form.errors.website }"
+                  />
                   <p v-if="form.errors.website" class="mt-1 text-sm text-red-600">{{ form.errors.website }}</p>
                 </div>
               </div>

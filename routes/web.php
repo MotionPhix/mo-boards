@@ -10,8 +10,10 @@ Route::get('/', function () {
 })->name('home');
 
 // Team invitation accept route - publicly accessible
-Route::get('/team/invitation/{token}', [App\Http\Controllers\TeamController::class, 'acceptInvitation'])
-    ->name('team.accept-invitation');
+Route::get(
+  '/team/invitation/{token}',
+  [App\Http\Controllers\TeamController::class, 'acceptInvitation']
+)->name('team.accept-invitation');
 
 Route::middleware(['auth', 'verified', 'ensure.company.access'])->group(function () {
     Route::get(
@@ -115,12 +117,12 @@ Route::middleware(['auth', 'verified', 'ensure.company.access'])->group(function
 
     Route::get(
         '/billboards/search',
-        App\Http\Controllers\SearchBillboardsController::class
+        App\Http\Controllers\Billboard\SearchBillboardsController::class
     )->name('billboards.search');
 
     Route::get(
         '/billboards/export',
-        App\Http\Controllers\ExportBillboardsController::class
+        App\Http\Controllers\Billboard\ExportBillboardsController::class
     )->middleware('plan.feature:export.enabled')
         ->name('billboards.export');
 

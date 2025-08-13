@@ -22,7 +22,7 @@ const r = (name: string, params?: Record<string, any>, absolute = false) => (win
 const base: (NavItem | undefined)[] = provided.length
   ? provided
   : [
-      { title: 'Company profile', href: r('companies.settings.profile') },
+      { title: 'Profile', href: r('companies.settings.profile') },
       { title: 'Numbering', href: r('companies.settings.numbering') },
       { title: 'Business', href: r('companies.settings.business') },
       abilities.can_view_company_billing ? { title: 'Billing', href: r('companies.settings.billing') } : undefined,
