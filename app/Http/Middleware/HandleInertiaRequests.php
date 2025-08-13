@@ -72,20 +72,23 @@ final class HandleInertiaRequests extends Middleware
                     'abilities' => $request->user() ? $this->getUserAbilities($request->user()) : [],
                 ] : null,
             ],
+            
             'theme' => [
-            'current' => $request->cookie('theme', 'system'),
-            'user_preference' => $request->user()?->theme_preference ?? null,
-        ],
+                'current' => $request->cookie('theme', 'system'),
+                'user_preference' => $request->user()?->theme_preference ?? null,
+            ],
+
             'flash' => [
-            'success' => $request->session()->get('success'),
-            'error' => $request->session()->get('error'),
-            'warning' => $request->session()->get('warning'),
-            'info' => $request->session()->get('info'),
-        ],
+                'success' => $request->session()->get('success'),
+                'error' => $request->session()->get('error'),
+                'warning' => $request->session()->get('warning'),
+                'info' => $request->session()->get('info'),
+            ],
+
             'ziggy' => [
-            ...(new Ziggy)->toArray(),
-            'location' => $request->url(),
-        ],
+                ...(new Ziggy)->toArray(),
+                'location' => $request->url(),
+            ],
         ];
     }
 

@@ -1,31 +1,37 @@
 <template>
-  <div class="fixed top-4 left-4 space-y-2 z-50">
-    <Alert v-if="flash.success" variant="default" class="w-96">
-      <CheckCircle class="h-4 w-4" />
-      <AlertTitle>Success</AlertTitle>
-      <AlertDescription>{{ flash.success }}</AlertDescription>
-    </Alert>
-
-    <Alert v-if="flash.error" variant="destructive" class="w-96">
-      <AlertCircle class="h-4 w-4" />
-      <AlertTitle>Error</AlertTitle>
-      <AlertDescription>{{ flash.error }}</AlertDescription>
-    </Alert>
-
-    <Alert v-if="flash.info" variant="default" class="w-96">
-      <Info class="h-4 w-4" />
-      <AlertTitle>Info</AlertTitle>
-      <AlertDescription>{{ flash.info }}</AlertDescription>
-    </Alert>
-  </div>
-</template>
+  <!-- No UI here; we convert server flash messages to toasts -->
+  <span style="display:none" />
+ </template>
 
 <script setup lang="ts">
 import { usePage } from '@inertiajs/vue3'
-import { CheckCircle, AlertCircle, Info } from 'lucide-vue-next'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import type { PageProps } from '@/types'
+import { watch } from 'vue'
+import { toast } from 'vue-sonner'
 
-const page = usePage<PageProps>()
-const flash = page.props.flash
+const page = usePage()
+
+// Show toasts when flash props change
+watch(
+  () => (page.props as any).flash,
+  (flash: any) => {
+    if (!flash) return
+
+    if (flash.success) {
+      toast.success(String(flash.success))
+    }
+
+    if (flash.error) {
+      toast.error(String(flash.error))
+    }
+
+    if (flash.warning) {
+      toast.warning(String(flash.warning))
+    }
+
+    if (flash.info) {
+      toast.info(String(flash.info))
+    }
+  },
+  { deep: true, immediate: true }
+)
 </script>

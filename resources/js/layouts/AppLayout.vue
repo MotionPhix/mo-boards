@@ -17,7 +17,6 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
-import FlashMessages from '@/components/FlashMessages.vue'
 import { Toaster } from 'vue-sonner'
 import 'vue-sonner/style.css'
 import { useTheme } from '@/composables/useTheme'
@@ -115,7 +114,7 @@ const computedBreadcrumbs = computed(() => {
   </Head>
 
   <!-- Sonner Toast -->
-  <Toaster :theme="isDark ? 'dark' : 'light'" position="top-right" rich-colors />
+  <Toaster :theme="isDark ? 'dark' : 'light'" position="top-right" rich-colors :duration="5000" />
 
   <SidebarProvider>
     <AppSidebar />
@@ -153,8 +152,7 @@ const computedBreadcrumbs = computed(() => {
         </div>
       </header>
 
-      <!-- Flash Messages -->
-      <FlashMessages />
+  <!-- Flash messages now handled globally via plugin -->
 
       <!-- Page Content -->
       <div class="flex flex-1 flex-col gap-4 p-4 pt-0">
