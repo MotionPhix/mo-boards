@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import CompanySettingsLayout from '@/layouts/company/SettingsLayout.vue';
-import { Link, usePage } from '@inertiajs/vue3';
+import { Link } from '@inertiajs/vue3';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table';
+import TableEmpty from '@/components/ui/table/TableEmpty.vue';
 
 const props = defineProps<{ transactions: any }>();
 
 const r = (name: string, params?: Record<string, any>, absolute = false) => (window as any).route?.(name, params, absolute);
-const page = usePage();
 </script>
 
 <template>
@@ -18,46 +19,67 @@ const page = usePage();
       { label: 'Transactions', href: r('companies.settings.billing.transactions') },
     ]">
     <CompanySettingsLayout>
-      <div class="overflow-x-auto rounded-md border">
-        <table class="w-full text-sm">
-          <thead class="bg-muted/50 text-left">
-            <tr>
-              <th class="p-3">Date</th>
-              <th class="p-3">Type</th>
-              <th class="p-3">Reference</th>
-              <th class="p-3">Amount</th>
-              <th class="p-3">Status</th>
-              <th class="p-3">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="t in transactions.data" :key="t.id" class="border-t">
-              <td class="p-3">{{ new Date(t.occurred_at || t.created_at).toLocaleString() }}</td>
-              <td class="p-3 capitalize">{{ t.type }}</td>
-              <td class="p-3">{{ t.reference }}</td>
-              <td class="p-3">
-                {{
-                  new Intl.NumberFormat(undefined, {
-                    style: 'currency',
-                    currency: t.currency || 'MWK',
-                  }).format((t.amount || 0) / 100)
-                }}
-              </td>
-              <td class="p-3 capitalize">{{ t.status }}</td>
-              <td class="p-3">
-                <a
-                  v-if="t.status === 'paid'"
-                  class="text-primary hover:underline"
-                  :href="r('companies.settings.billing.transactions.receipt', { transaction: t.id })">
-                  Download receipt
-                </a>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="rounded-md border overflow-x-auto">
+        <Table>
+          <TableCaption class="text-muted-foreground mb-4">
+            Company billing transactions
+          </TableCaption>
+
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Reference</TableHead>
+              <TableHead>Amount</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <template v-if="transactions?.data?.length">
+              <TableRow v-for="t in transactions.data" :key="t.id">
+                <TableCell>{{ new Date(t.occurred_at || t.created_at).toLocaleString() }}</TableCell>
+                <TableCell class="capitalize">{{ t.type }}</TableCell>
+                <TableCell>{{ t.reference }}</TableCell>
+                <TableCell>
+                  {{
+                    new Intl.NumberFormat(undefined, {
+                      style: 'currency',
+                      currency: t.currency || 'MWK',
+                    }).format((t.amount || 0) / 100)
+                  }}
+                </TableCell>
+                <TableCell class="capitalize">{{ t.status }}</TableCell>
+                <TableCell>
+                  <a
+                    v-if="t.status === 'paid'"
+                    class="text-primary hover:underline"
+                    :href="r('companies.settings.billing.transactions.receipt', { transaction: t.id })"
+                  >
+                    Download receipt
+                  </a>
+                </TableCell>
+              </TableRow>
+            </template>
+
+            <template v-else>
+              <TableEmpty :colspan="6">
+                <div class="text-center">
+                  <div class="text-base font-medium text-foreground">No transactions yet</div>
+                  <div class="mt-1 text-sm text-muted-foreground">When you subscribe or are billed, your transactions will appear here.</div>
+                  <div class="mt-4">
+                    <Link :href="r('companies.settings.billing')" class="text-sm text-primary underline underline-offset-4">Go to Billing</Link>
+                  </div>
+                </div>
+              </TableEmpty>
+            </template>
+          </TableBody>
+        </Table>
       </div>
 
-      <div class="text-muted-foreground mt-4 flex items-center justify-between text-sm">
+      <div 
+        v-if="transactions?.data?.length"
+        class="text-muted-foreground mt-4 flex items-center justify-between text-sm">
         <div>
           Showing
           <strong>{{ transactions.from }}</strong>

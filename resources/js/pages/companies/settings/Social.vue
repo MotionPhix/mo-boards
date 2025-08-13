@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useForm } from '@inertiajs/vue3'
+import { ref } from 'vue'
+import { Trash2 } from 'lucide-vue-next'
 
 interface Props {
   company: Record<string, any>
@@ -13,18 +15,42 @@ interface Props {
 }
 const props = defineProps<Props>()
 
+// Initialize from existing links or sensible defaults
+const initialLinksObj: Record<string, string> = props.company?.social_media_links ?? {
+  facebook: '',
+  twitter: '',
+  linkedin: '',
+  instagram: '',
+}
+
+// Editable list of links
+const links = ref<{ key: string; url: string }[]>(
+  Object.entries(initialLinksObj).map(([key, url]) => ({ key, url: (url as string) || '' }))
+)
+
 const form = useForm({
   section: 'social',
-  social_media_links: {
-    facebook: props.company?.social_media_links?.facebook || '',
-    twitter: props.company?.social_media_links?.twitter || '',
-    linkedin: props.company?.social_media_links?.linkedin || '',
-    instagram: props.company?.social_media_links?.instagram || '',
-  },
+  social_media_links: initialLinksObj,
 })
 
 const submit = () => {
+  // Build object from editable list, filtering out empty pairs
+  const payload: Record<string, string> = {}
+  for (const item of links.value) {
+    const k = (item.key || '').trim()
+    const v = (item.url || '').trim()
+    if (k && v) payload[k] = v
+  }
+  form.social_media_links = payload
   form.post(r('companies.settings.update'), { preserveScroll: true })
+}
+
+const addLink = () => {
+  links.value.push({ key: '', url: '' })
+}
+
+const removeLink = (index: number) => {
+  links.value.splice(index, 1)
 }
 
 const r = (name: string, params?: Record<string, any>, absolute = false): string =>
@@ -50,23 +76,31 @@ const r = (name: string, params?: Record<string, any>, absolute = false): string
               <CardDescription>Add your company's social media profiles</CardDescription>
             </CardHeader>
             <CardContent class="space-y-4">
-              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <Label for="facebook">Facebook</Label>
-                  <Input id="facebook" v-model="form.social_media_links.facebook" type="url" placeholder="https://facebook.com/yourcompany" class="mt-1" />
+              <div class="space-y-3">
+                <div v-for="(item, idx) in links" :key="idx" class="grid grid-cols-1 gap-3 md:grid-cols-12 md:items-end">
+                  <div class="md:col-span-4">
+                    <Label :for="`platform-${idx}`">Platform</Label>
+                    <Input :id="`platform-${idx}`" v-model="item.key" type="text" placeholder="e.g., facebook, youtube" class="mt-1" />
+                  </div>
+
+                  <div class="md:col-span-7">
+                    <Label :for="`url-${idx}`">URL</Label>
+                    <Input :id="`url-${idx}`" v-model="item.url" type="url" placeholder="https://example.com/yourcompany" class="mt-1" />
+                  </div>
+
+                  <div class="md:col-span-1">
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon" 
+                      @click="removeLink(idx)">
+                      <Trash2 />
+                    </Button>
+                  </div>
                 </div>
-                <div>
-                  <Label for="twitter">Twitter/X</Label>
-                  <Input id="twitter" v-model="form.social_media_links.twitter" type="url" placeholder="https://twitter.com/yourcompany" class="mt-1" />
-                </div>
-                <div>
-                  <Label for="linkedin">LinkedIn</Label>
-                  <Input id="linkedin" v-model="form.social_media_links.linkedin" type="url" placeholder="https://linkedin.com/company/yourcompany" class="mt-1" />
-                </div>
-                <div>
-                  <Label for="instagram">Instagram</Label>
-                  <Input id="instagram" v-model="form.social_media_links.instagram" type="url" placeholder="https://instagram.com/yourcompany" class="mt-1" />
-                </div>
+              </div>
+              <div>
+                <Button type="button" variant="outline" @click="addLink">Add another link</Button>
               </div>
             </CardContent>
           </Card>
