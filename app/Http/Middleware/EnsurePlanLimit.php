@@ -28,7 +28,9 @@ final class EnsurePlanLimit
             abort(403, 'No active company.');
         }
 
-        $planId = (string) ($company->subscription_plan ?? 'free');
+        $planId = is_object($company->subscription_plan)
+            ? $company->subscription_plan->value
+            : (string) ($company->subscription_plan ?? 'free');
         $limit = PlanGate::limit($planId, $limitKey, null); // null = unlimited
 
         if ($limit === null) {

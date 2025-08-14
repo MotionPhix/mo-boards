@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Models\Billboard;
 use App\Models\Company;
 use App\Models\User;
@@ -52,16 +54,21 @@ it('GET /billboards/{billboard:uuid}/edit returns Inertia with resource and mark
     $fakeRelation->shouldReceive('limit')->andReturnSelf();
     $fakeRelation->shouldReceive('get')->andReturn(collect([]));
 
-    $company = M::mock(Company::class)->makePartial();
-    $company->id = 10;
-    $company->name = 'Beta Co';
-    $company->currency = 'USD';
+    $company = new Company(['id' => 10, 'name' => 'Beta Co', 'currency' => 'USD']);
+    $company = M::mock($company)->makePartial();
     $company->shouldReceive('billboards')->andReturn($fakeRelation);
 
-    $billboard = new class(['id' => 99, 'uuid' => '11111111-1111-1111-1111-111111111111', 'company_id' => 10]) extends Billboard {
-        public function loadMissing($relations) { return $this; }
-        public function loadCount($relations) { return $this; }
-    };
+    // Mock contracts relation for loadCount
+    $fakeContractsRelation = M::mock(HasMany::class);
+    $fakeContractsRelation->shouldReceive('where')->andReturnSelf();
+
+    // Create a real model instance, then wrap with a partial mock to stub heavy Eloquent methods
+    $billboard = new Billboard(['id' => 99, 'uuid' => '11111111-1111-1111-1111-111111111111', 'company_id' => 10]);
+    $billboard = M::mock($billboard)->makePartial();
+    $billboard->shouldReceive('loadMissing')->with(M::any())->andReturnSelf();
+    $billboard->shouldReceive('loadCount')->with(M::any())->andReturnSelf();
+    $billboard->shouldReceive('loadAggregate')->andReturnSelf();
+    $billboard->shouldReceive('contracts')->andReturn($fakeContractsRelation);
     $billboard->setRelation('company', $company);
 
     // Bind route model to return our prepared instance

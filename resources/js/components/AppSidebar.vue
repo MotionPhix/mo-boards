@@ -10,7 +10,6 @@ import {
   FileText,
   Users,
   Settings,
-  Building,
   Library as LibraryBig,
 } from 'lucide-vue-next'
 import NavMain from '@/components/NavMain.vue'

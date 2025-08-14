@@ -19,6 +19,7 @@ const props = defineProps<{
   }>;
   currentPlan: string;
   transactions: Array<any>;
+    scheduledChange?: { plan_id: string; plan_name: string; starts_at: string } | null;
 }>();
 
 const form = useForm({ plan_id: '' });
@@ -30,6 +31,7 @@ const r = (name: string, params?: Record<string, any>, absolute = false): string
   ((window as any).route?.(name, params, absolute) as string) ?? '#';
 
 const subscribe = (planId: string) => {
+  if (isCurrent(planId)) return;
   form.plan_id = planId;
   form.post(r('companies.settings.billing.subscribe'));
 };
@@ -57,12 +59,8 @@ const planTagClass = (id: string) => {
   switch (key) {
     case 'pro':
       return 'text-primary';
-    case 'team':
-      return 'text-green-600 dark:text-green-500';
     case 'business':
       return 'text-blue-600 dark:text-blue-500';
-    case 'enterprise':
-      return 'text-indigo-600 dark:text-indigo-400';
     default:
       return 'text-muted-foreground';
   }
@@ -72,6 +70,57 @@ const currentPlanName = computed(() => {
   const m = props.plans?.find((p) => p.id === props.currentPlan);
   return m?.name || props.currentPlan;
 });
+
+// Helpers for expiry formatting
+const expiresAtDate = computed<Date | null>(() => {
+  const raw = props.company?.subscription_expires_at as string | undefined;
+  if (!raw) return null;
+  const d = new Date(raw);
+  return isNaN(d.getTime()) ? null : d;
+});
+
+const expiresAtText = computed(() => {
+  const d = expiresAtDate.value;
+  if (!d) return null;
+  try {
+    return d.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return d.toISOString();
+  }
+});
+
+function relativeFromNow(target: Date): string {
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+  const now = Date.now();
+  const diffMs = target.getTime() - now;
+  const abs = Math.abs(diffMs);
+
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  const month = 30 * day;
+  const year = 365 * day;
+
+  if (abs >= year) return rtf.format(Math.round(diffMs / year), 'year');
+  if (abs >= month) return rtf.format(Math.round(diffMs / month), 'month');
+  if (abs >= day) return rtf.format(Math.round(diffMs / day), 'day');
+  if (abs >= hour) return rtf.format(Math.round(diffMs / hour), 'hour');
+  if (abs >= minute) return rtf.format(Math.round(diffMs / minute), 'minute');
+  return rtf.format(Math.round(diffMs / 1000), 'second');
+}
+
+const expiresRelative = computed(() => {
+  const d = expiresAtDate.value;
+  return d ? relativeFromNow(d) : null;
+});
+const scheduledStartsAt = computed(() => (props.scheduledChange?.starts_at ? new Date(props.scheduledChange.starts_at) : null));
+const scheduledRelative = computed(() => (scheduledStartsAt.value ? relativeFromNow(scheduledStartsAt.value) : null));
 </script>
 
 <template>
@@ -83,11 +132,21 @@ const currentPlanName = computed(() => {
     ]">
     <CompanySettingsLayout>
       <div class="mx-auto max-w-6xl">
-        <div class="mb-6 text-center">
+        <div class="mb-6 text-center mb-12">
           <h2 class="text-2xl font-semibold tracking-tight">Simple pricing</h2>
+
           <p class="text-muted-foreground mt-1 text-sm">
-            Current plan: <span class="font-medium">{{ currentPlanName }}</span
-            >. Switch plans anytime.
+            Current plan: <span class="font-bold capitalize">{{ currentPlanName }}</span>.
+            Switch plans anytime.
+          </p>
+
+          <p v-if="expiresAtText" class="text-muted-foreground mt-1 text-xs">
+            Plan expires on {{ expiresAtText }}
+            <span v-if="expiresRelative"> ({{ expiresRelative }})</span>
+          </p>
+
+          <p v-if="scheduledRelative && props.scheduledChange" class="text-amber-600 dark:text-amber-400 mt-1 text-xs">
+            Plan change to <span class="font-medium">{{ props.scheduledChange.plan_name }}</span> scheduled {{ scheduledRelative }}
           </p>
         </div>
 

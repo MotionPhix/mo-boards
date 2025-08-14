@@ -6,8 +6,9 @@ namespace App\Http\Controllers\Company;
 
 use App\Http\Controllers\Controller;
 use App\Models\BillingPlan;
-use Illuminate\Support\Facades\DB;
+use App\Models\CompanySubscription;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -58,11 +59,23 @@ final class CompanyBillingController extends Controller
 
         $transactions = $company->transactions()->latest('occurred_at')->limit(20)->get();
 
+        // Surface any scheduled plan change
+        $scheduled = CompanySubscription::query()
+            ->where('company_id', $company->id)
+            ->where('status', 'scheduled')
+            ->latest('started_at')
+            ->first();
+
         return Inertia::render('companies/settings/Billing', [
             'company' => $company,
             'plans' => $plans,
             'currentPlan' => $company->subscription_plan ?? 'free',
             'transactions' => $transactions,
+            'scheduledChange' => $scheduled ? [
+                'plan_id' => $scheduled->plan_id,
+                'plan_name' => $scheduled->plan_name,
+                'starts_at' => $scheduled->started_at,
+            ] : null,
             'can' => [
                 'manage_billing' => Auth::user()->can('companies.manage_billing'),
             ],

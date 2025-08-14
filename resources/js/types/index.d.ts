@@ -54,7 +54,7 @@ export interface Company {
   industry?: string
   size?: '1-10' | '11-50' | '51-200' | '200+'
   address?: string
-  subscription_plan: 'starter' | 'professional' | 'enterprise'
+  subscription_plan: 'free' | 'pro' | 'business'
   subscription_expires_at?: string
   is_active: boolean
   created_at: string

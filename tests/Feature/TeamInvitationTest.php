@@ -1,26 +1,36 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Models\Company;
-use App\Models\TeamInvitation;
 use App\Models\User;
 use App\Notifications\TeamInvitationNotification;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
 use Inertia\Testing\AssertableInertia as Assert;
 use Mockery as M;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
 
 // Lightweight in-memory user for actingAs and notifications, without loading App\Models\User
-class FakeUser implements \Illuminate\Contracts\Auth\Authenticatable {
-    use \Illuminate\Auth\Authenticatable, \Illuminate\Notifications\Notifiable;
+final class FakeUser implements Illuminate\Contracts\Auth\Authenticatable
+{
+    use Illuminate\Auth\Authenticatable, \Illuminate\Notifications\Notifiable;
+
     public $id = 1;
+
     public $email = 'owner@example.com';
+
     public $name = 'Owner';
+
     public $currentCompany;
-    public function can($ability, $arguments = []) { return true; }
+
+    public function can($ability, $arguments = [])
+    {
+        return true;
+    }
 }
 
 uses(RefreshDatabase::class);
@@ -41,7 +51,8 @@ beforeEach(function () {
 test('team owner can view the invitation form', function () {
     // Prepare owner and company without DB
     $owner = new FakeUser();
-    $company = Company::factory()->make(['id' => 1, 'name' => 'Acme Co']);
+    $company = new Company(['id' => 1, 'name' => 'Test Co', 'currency' => 'USD']);
+    $company = M::mock($company)->makePartial();
 
     // Stub company relations used in controller
     $fakeRelation = M::mock(BelongsToMany::class);
@@ -53,8 +64,8 @@ test('team owner can view the invitation form', function () {
     $fakeRelation->shouldReceive('get')->andReturn(collect([]));
     $fakeRelation->shouldReceive('exists')->andReturn(false);
 
-    $company = M::mock(Company::class)->makePartial();
-    $company->id = 1; $company->name = 'Acme Co';
+    $company->id = 1;
+    $company->name = 'Test Co';
     $company->shouldReceive('users')->andReturn($fakeRelation);
     $fakeInvitations = M::mock(HasMany::class);
     $fakeInvitations->shouldReceive('where')->andReturnSelf();
@@ -101,7 +112,7 @@ test('team owner can send invitation and email is sent', function () {
     $response->assertSessionHas('success', 'Invitation has been sent successfully.');
 
     Notification::assertSentTo(
-        [new \Illuminate\Notifications\AnonymousNotifiable],
+        [new Illuminate\Notifications\AnonymousNotifiable],
         TeamInvitationNotification::class,
         function ($notification, $channels, $notifiable) {
             return ($notifiable->routes['mail'] ?? null) === 'john@example.com';

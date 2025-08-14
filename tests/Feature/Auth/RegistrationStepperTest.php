@@ -172,7 +172,7 @@ final class RegistrationStepperTest extends TestCase
 
     public function test_step_3_passes_with_valid_subscription_plan(): void
     {
-        $validPlans = ['starter', 'professional', 'enterprise'];
+        $validPlans = ['free', 'pro', 'business'];
 
         foreach ($validPlans as $plan) {
             $response = $this->post('/register/validate-step-3', [
@@ -267,7 +267,7 @@ final class RegistrationStepperTest extends TestCase
 
         // Test that step 3 validation doesn't require other fields
         $response = $this->post('/register/validate-step-3', [
-            'subscription_plan' => 'starter',
+            'subscription_plan' => 'free',
             // No other fields
         ]);
 
@@ -288,7 +288,7 @@ final class RegistrationStepperTest extends TestCase
                 'name',
                 'email',
                 'password',
-            ]
+            ],
         ]);
     }
 

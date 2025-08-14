@@ -7,7 +7,7 @@ const form = useForm({
   industry: '',
   size: null as string | null,
   address: '',
-  subscription_plan: 'starter',
+  subscription_plan: 'free',
 })
 
 function submit() {
@@ -56,9 +56,9 @@ function submit() {
             <div>
               <label class="block text-sm font-medium">Subscription Plan</label>
               <select v-model="form.subscription_plan" class="mt-1 w-full rounded border px-3 py-2" required>
-                <option value="starter">Starter</option>
-                <option value="professional">Professional</option>
-                <option value="enterprise">Enterprise</option>
+                <option value="free">Free</option>
+                <option value="pro">Pro</option>
+                <option value="business">Business</option>
               </select>
             </div>
           </div>

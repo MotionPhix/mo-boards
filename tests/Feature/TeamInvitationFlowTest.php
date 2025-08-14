@@ -12,11 +12,8 @@ use Spatie\Permission\Models\Role;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    // Create roles for tests
-    Role::create(['name' => 'company_owner']);
-    Role::create(['name' => 'manager']);
-    Role::create(['name' => 'editor']);
-    Role::create(['name' => 'viewer']);
+    // Seed roles and permissions
+    $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
 });
 
 test('complete team invitation flow from invitation to login', function () {
@@ -29,6 +26,9 @@ test('complete team invitation flow from invitation to login', function () {
         'is_owner' => true,
     ]);
     $owner->update(['current_company_id' => $company->id]);
+    
+    // Assign the Spatie role for permissions
+    $owner->assignRole('company_owner');
 
     // Step 2: Send invitation
     Notification::fake();
@@ -105,6 +105,9 @@ test('existing user invitation acceptance flow', function () {
         'is_owner' => true,
     ]);
     $owner->update(['current_company_id' => $company->id]);
+    
+    // Assign the Spatie role for permissions
+    $owner->assignRole('company_owner');
 
     // Create an existing user (not in company)
     $existingUser = User::factory()->create([

@@ -15,7 +15,7 @@ final class ValidateRegistrationStep3Controller
     {
         try {
             $request->validate([
-                'subscription_plan' => 'required|string|in:starter,professional,enterprise',
+                'subscription_plan' => 'required|string|in:free,pro,business',
             ]);
 
             return response()->json([

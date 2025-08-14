@@ -7,8 +7,8 @@ namespace Tests\Feature\Auth;
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -49,7 +49,7 @@ final class CompanyRegistrationTestFixed extends TestCase
             'industry' => 'outdoor-advertising',
             'company_size' => '11-50',
             'address' => '123 Main St, City, State 12345',
-            'subscription_plan' => 'professional',
+            'subscription_plan' => 'pro',
         ];
 
         $response = $this->post('/register', $registrationData);
@@ -67,7 +67,7 @@ final class CompanyRegistrationTestFixed extends TestCase
             'industry' => 'outdoor-advertising',
             'size' => '11-50',
             'address' => '123 Main St, City, State 12345',
-            'subscription_plan' => 'professional',
+            'subscription_plan' => 'pro',
             'is_active' => true,
         ]);
 
@@ -105,7 +105,7 @@ final class CompanyRegistrationTestFixed extends TestCase
             'password' => 'SecurePassword123!',
             'password_confirmation' => 'SecurePassword123!',
             'company_name' => str_repeat('A', 300), // Exceeds typical varchar(255) limit
-            'subscription_plan' => 'starter',
+            'subscription_plan' => 'free',
         ];
 
         $response = $this->post('/register', $registrationData);
@@ -137,7 +137,7 @@ final class CompanyRegistrationTestFixed extends TestCase
             'password' => 'SecurePassword123!',
             'password_confirmation' => 'SecurePassword123!',
             'company_name' => 'Acme Advertising',
-            'subscription_plan' => 'starter',
+            'subscription_plan' => 'free',
         ];
 
         $this->post('/register', $registrationData);
@@ -166,7 +166,7 @@ final class CompanyRegistrationTestFixed extends TestCase
             'password' => 'SecurePassword123!',
             'password_confirmation' => 'SecurePassword123!',
             'company_name' => 'Acme Advertising',
-            'subscription_plan' => 'starter',
+            'subscription_plan' => 'free',
         ]);
 
         $response->assertSessionHasErrors(['email']);
@@ -183,7 +183,7 @@ final class CompanyRegistrationTestFixed extends TestCase
             'password' => 'SecurePassword123!',
             'password_confirmation' => 'SecurePassword123!',
             'company_name' => 'Acme Advertising',
-            'subscription_plan' => 'starter',
+            'subscription_plan' => 'free',
         ]);
 
         $response->assertSessionHasErrors(['email']);
@@ -197,7 +197,7 @@ final class CompanyRegistrationTestFixed extends TestCase
             'password' => 'SecurePassword123!',
             'password_confirmation' => 'DifferentPassword123!',
             'company_name' => 'Acme Advertising',
-            'subscription_plan' => 'starter',
+            'subscription_plan' => 'free',
         ]);
 
         $response->assertSessionHasErrors(['password']);
@@ -225,7 +225,7 @@ final class CompanyRegistrationTestFixed extends TestCase
 
     public function test_registration_with_all_subscription_plans(): void
     {
-        $plans = ['starter', 'professional', 'enterprise'];
+        $plans = ['free', 'pro', 'business'];
 
         foreach ($plans as $index => $plan) {
             $registrationData = [

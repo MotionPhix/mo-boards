@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "php",
+            "args": [
+                "G:\\Herd\\mo-boards\\artisan",
+                "boost:mcp"
+            ]
+        }
+    }
+}

@@ -68,9 +68,10 @@ const createNewCompany = () => {
               <span class="truncate font-semibold">
                 {{ activeTeam?.name || 'Select Company' }}
               </span>
-              <span class="truncate text-xs flex items-center gap-1">
-                <Crown v-if="activeTeam?.isOwner" class="size-3" />
-                {{ activeTeam?.plan || 'Free' }}
+
+              <span class="truncate text-xs flex items-center gap-1 capitalize text-muted-foreground">
+                <span>{{ activeTeam?.plan || 'Free' }}</span>
+                <span>Plan</span>
               </span>
             </div>
             <ChevronsUpDown class="ml-auto size-4" />

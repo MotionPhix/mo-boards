@@ -1,24 +1,29 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\PayChangu;
 
 use Exception;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 
-class PayChanguService
+final class PayChanguService
 {
     private string $baseUrl;
+
     private string $clientId;
+
     private string $clientSecret;
+
     private string $callbackUrl;
 
     public function __construct()
     {
-    $this->baseUrl = (string) config('paychangu.base_url', 'https://api.paychangu.com');
-    // Cast to string to avoid assigning null to typed properties; validation happens when used
-    $this->clientId = (string) (config('paychangu.client_id') ?? '');
-    $this->clientSecret = (string) (config('paychangu.client_secret') ?? '');
+        $this->baseUrl = (string) config('paychangu.base_url', 'https://api.paychangu.com');
+        $this->clientId = (string) (config('paychangu.client_id') ?? '');
+        $this->clientSecret = (string) (config('paychangu.client_secret') ?? '');
         $this->callbackUrl = url(config('paychangu.callback_url'));
     }
 
@@ -29,10 +34,10 @@ class PayChanguService
     {
         try {
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->getAccessToken(),
+                'Authorization' => 'Bearer '.$this->getAccessToken(),
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
-            ])->post($this->baseUrl . '/api/v1/payments', [
+            ])->post(mb_rtrim($this->baseUrl, '/').'/api/v1/payments', [
                 'amount' => $paymentRequest->amount,
                 'currency' => $paymentRequest->currency,
                 'reference' => $paymentRequest->reference,
@@ -51,9 +56,9 @@ class PayChanguService
             if ($response->failed()) {
                 Log::error('PayChangu payment creation failed', [
                     'status' => $response->status(),
-                    'response' => $response->body()
+                    'response' => $response->body(),
                 ]);
-                throw new Exception('Payment creation failed: ' . $response->body());
+                throw new Exception('Payment creation failed: '.$response->body());
             }
 
             $data = $response->json();
@@ -71,7 +76,7 @@ class PayChanguService
         } catch (Exception $e) {
             Log::error('PayChangu service error', [
                 'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
         }
@@ -84,17 +89,17 @@ class PayChanguService
     {
         try {
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->getAccessToken(),
+                'Authorization' => 'Bearer '.$this->getAccessToken(),
                 'Accept' => 'application/json',
-            ])->get($this->baseUrl . "/api/v1/payments/{$paymentId}");
+            ])->get(mb_rtrim($this->baseUrl, '/')."/api/v1/payments/{$paymentId}");
 
             if ($response->failed()) {
                 Log::error('PayChangu payment verification failed', [
                     'payment_id' => $paymentId,
                     'status' => $response->status(),
-                    'response' => $response->body()
+                    'response' => $response->body(),
                 ]);
-                throw new Exception('Payment verification failed: ' . $response->body());
+                throw new Exception('Payment verification failed: '.$response->body());
             }
 
             $data = $response->json();
@@ -116,61 +121,7 @@ class PayChanguService
             Log::error('PayChangu verification error', [
                 'payment_id' => $paymentId,
                 'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            throw $e;
-        }
-    }
-
-    /**
-     * Get access token for API authentication
-     */
-    private function getAccessToken(): string
-    {
-        $cacheKey = 'paychangu_access_token';
-
-        // Try to get cached token
-        $token = cache($cacheKey);
-        if ($token) {
-            return $token;
-        }
-
-        if ($this->clientId === '' || $this->clientSecret === '') {
-            throw new \RuntimeException('PayChangu credentials are not configured. Set PAYCHANGU_CLIENT_ID and PAYCHANGU_CLIENT_SECRET in your .env.');
-        }
-
-        try {
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-            ])->post($this->baseUrl . '/oauth/token', [
-                'grant_type' => 'client_credentials',
-                'client_id' => $this->clientId,
-                'client_secret' => $this->clientSecret,
-                'scope' => 'payments',
-            ]);
-
-            if ($response->failed()) {
-                Log::error('PayChangu token request failed', [
-                    'status' => $response->status(),
-                    'response' => $response->body()
-                ]);
-                throw new Exception('Failed to get access token: ' . $response->body());
-            }
-
-            $data = $response->json();
-            $token = $data['access_token'];
-            $expiresIn = $data['expires_in'] ?? 3600;
-
-            // Cache token for slightly less than expiry time
-            cache([$cacheKey => $token], now()->addSeconds($expiresIn - 60));
-
-            return $token;
-
-        } catch (Exception $e) {
-            Log::error('PayChangu token error', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
         }
@@ -185,5 +136,81 @@ class PayChanguService
         $expectedSignature = hash_hmac('sha256', $payload, $webhookSecret);
 
         return hash_equals($expectedSignature, $signature);
+    }
+
+    /**
+     * Get access token for API authentication
+     */
+    private function getAccessToken(): string
+    {
+        $cacheKey = 'paychangu_access_token';
+
+        if ($token = cache($cacheKey)) {
+            return $token;
+        }
+
+        if ($this->clientId === '' || $this->clientSecret === '') {
+            throw new RuntimeException('PayChangu credentials are not configured. Set PAYCHANGU_CLIENT_ID and PAYCHANGU_CLIENT_SECRET in your .env.');
+        }
+
+        try {
+            $base = mb_rtrim($this->baseUrl, '/');
+            $endpoints = [
+                $base.'/api/v1/oauth/token',
+                $base.'/oauth/token',
+            ];
+
+            $payload = [
+                'grant_type' => 'client_credentials',
+                'client_id' => $this->clientId,
+                'client_secret' => $this->clientSecret,
+                'scope' => 'payments',
+            ];
+
+            $last = null;
+            foreach ($endpoints as $url) {
+                $res = Http::withHeaders([
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                ])->post($url, $payload);
+
+                if ($res->successful()) {
+                    $data = $res->json();
+                    $token = $data['access_token'] ?? null;
+                    if ($token) {
+                        $ttl = (int) ($data['expires_in'] ?? 3600);
+                        cache([$cacheKey => $token], now()->addSeconds(max(60, $ttl) - 60));
+
+                        return $token;
+                    }
+                }
+
+                if (in_array($res->status(), [404, 405], true) || str_contains(mb_strtolower($res->body()), 'post method is not supported')) {
+                    $res = Http::withHeaders(['Accept' => 'application/json'])->get($url, $payload);
+                    if ($res->successful()) {
+                        $data = $res->json();
+                        $token = $data['access_token'] ?? null;
+                        if ($token) {
+                            $ttl = (int) ($data['expires_in'] ?? 3600);
+                            cache([$cacheKey => $token], now()->addSeconds(max(60, $ttl) - 60));
+
+                            return $token;
+                        }
+                    }
+                }
+
+                $last = ['status' => $res->status(), 'response' => $res->body(), 'url' => $url];
+                Log::warning('PayChangu token attempt failed', $last);
+            }
+
+            $msg = $last ? ($last['status'].' '.$last['response']) : 'Unknown error';
+            throw new Exception('Failed to get access token: '.$msg);
+        } catch (Exception $e) {
+            Log::error('PayChangu token error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
     }
 }
