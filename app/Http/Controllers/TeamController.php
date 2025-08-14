@@ -9,6 +9,7 @@ use App\Http\Requests\TeamMemberUpdateRequest;
 use App\Http\Resources\TeamResource;
 use App\Models\TeamInvitation;
 use App\Models\User;
+use App\Services\SubscriptionLimitService;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\RedirectResponse;
@@ -20,6 +21,12 @@ use Spatie\Permission\Models\Role;
 
 final class TeamController extends Controller
 {
+    public function __construct(
+        private readonly SubscriptionLimitService $subscriptionLimitService
+    ) {
+        // Dependencies injected via constructor.
+    }
+
     public function index(Request $request): Response
     {
         $company = $request->user()->currentCompany;
@@ -207,6 +214,21 @@ final class TeamController extends Controller
     public function invite(TeamInvitationRequest $request): RedirectResponse
     {
         $company = $request->user()->currentCompany;
+
+        // Check subscription limits for team invitations
+        if (!$this->subscriptionLimitService->canInviteTeamMember($company)) {
+            $planId = $company->subscription_plan ?? 'free';
+            $teamCount = $company->users()->count();
+            $limit = \App\Services\Billing\PlanGate::limit($planId, 'team.members.max');
+            
+            $message = $planId === 'free' 
+                ? 'Team invitations are not available on the free plan. Upgrade to Pro or Business to invite team members.'
+                : "You've reached your team member limit ({$limit}) for the {$planId} plan. Please upgrade to invite more members.";
+                
+            return redirect()->route('team.index')
+                ->with('error', $message)
+                ->with('upgrade_required', true);
+        }
 
         // Check if the user already exists
         $existingUser = User::where('email', $request->email)->first();

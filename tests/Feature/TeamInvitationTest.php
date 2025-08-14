@@ -89,11 +89,14 @@ test('team owner can view the invitation form', function () {
 });
 
 test('team owner can send invitation and email is sent', function () {
+    // Seed the plan feature rules
+    $this->seed(\Database\Seeders\PlanFeatureRulesSeeder::class);
+    
     Notification::fake();
 
     // Real owner and company using DB
     $owner = User::factory()->create();
-    $company = Company::factory()->create();
+    $company = Company::factory()->create(['subscription_plan' => 'pro']); // Use pro plan
     $owner->forceFill(['current_company_id' => $company->id])->save();
     $owner->companies()->attach($company->id, [
         'is_owner' => true,
@@ -121,11 +124,14 @@ test('team owner can send invitation and email is sent', function () {
 });
 
 test('existing user receives invitation email', function () {
+    // Seed the plan feature rules
+    $this->seed(\Database\Seeders\PlanFeatureRulesSeeder::class);
+    
     Notification::fake();
 
     // Real owner/company and existing user in DB
     $owner = User::factory()->create();
-    $company = Company::factory()->create();
+    $company = Company::factory()->create(['subscription_plan' => 'pro']); // Use pro plan
     $owner->forceFill(['current_company_id' => $company->id])->save();
     $owner->companies()->attach($company->id, [
         'is_owner' => true,
@@ -151,9 +157,12 @@ test('existing user receives invitation email', function () {
 });
 
 test('user cannot be invited to a company they already belong to', function () {
+    // Seed the plan feature rules
+    $this->seed(\Database\Seeders\PlanFeatureRulesSeeder::class);
+    
     // Real owner/company and existing member already attached
     $owner = User::factory()->create();
-    $company = Company::factory()->create();
+    $company = Company::factory()->create(['subscription_plan' => 'pro']); // Use pro plan
     $owner->forceFill(['current_company_id' => $company->id])->save();
     $owner->companies()->attach($company->id, [
         'is_owner' => true,

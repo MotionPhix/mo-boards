@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateBillboardRequest;
 use App\Http\Resources\BillboardResource;
 use App\Models\Billboard;
 use App\Services\BillboardService;
+use App\Services\SubscriptionLimitService;
 use App\Enums\BillboardStatus;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
@@ -23,7 +24,8 @@ final class BillboardController extends Controller
   use AuthorizesRequests;
 
   public function __construct(
-    private readonly BillboardService $billboardService
+    private readonly BillboardService $billboardService,
+    private readonly SubscriptionLimitService $subscriptionLimitService
   )
   {
   // Dependencies injected via constructor.
@@ -78,10 +80,11 @@ final class BillboardController extends Controller
         'name' => $company->name,
       ],
       'permissions' => [
-        'can_create' => $user->can('create', Billboard::class),
+        'can_create' => $user->can('create', Billboard::class) && $this->subscriptionLimitService->canCreateBillboard($company),
         'can_export' => $user->can('exportData', Billboard::class),
         'can_bulk_update' => $user->can('bulkUpdate', Billboard::class),
       ],
+      'usage' => $this->subscriptionLimitService->getUsageSummary($company),
     ]);
   }
 
@@ -97,12 +100,22 @@ final class BillboardController extends Controller
         ->with('error', 'Please select a company first.');
     }
 
+    // Check subscription limits
+    if (!$this->subscriptionLimitService->canCreateBillboard($company)) {
+      $remaining = $this->subscriptionLimitService->getRemainingQuota($company, 'billboards');
+      $planId = $company->subscription_plan ?? 'free';
+      
+      return redirect()->route('billboards.index')
+        ->with('error', "You've reached your billboard limit for the {$planId} plan. Please upgrade to create more billboards.")
+        ->with('upgrade_required', true);
+    }
+
     return Inertia::render('billboards/Create', [
       'company' => [
         'id' => $company->id,
         'name' => $company->name,
       ],
-  'statuses' => BillboardStatus::options(),
+      'statuses' => BillboardStatus::options(),
     ]);
   }
 
@@ -116,6 +129,15 @@ final class BillboardController extends Controller
     if (!$company) {
       return redirect()->route('companies.index')
         ->with('error', 'Please select a company first.');
+    }
+
+    // Check subscription limits
+    if (!$this->subscriptionLimitService->canCreateBillboard($company)) {
+      $planId = $company->subscription_plan ?? 'free';
+      
+      return redirect()->route('billboards.index')
+        ->with('error', "You've reached your billboard limit for the {$planId} plan. Please upgrade to create more billboards.")
+        ->with('upgrade_required', true);
     }
 
   // Exclude 'images' from mass assignment; files are handled via Media Library

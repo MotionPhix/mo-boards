@@ -9,41 +9,81 @@ class PlanFeatureRulesSeeder extends Seeder
 {
     public function run(): void
     {
-        // A simple key-value store for plan feature limits
-        // Table will be created via migration below
+        // Comprehensive plan feature rules using our SubscriptionFeature enum values
         $rules = [
-            // plan_id => [feature_key => value]
             'free' => [
+                // Limits
                 'billboards.max' => 5,
-                'contracts.max' => 10,
-                'team.members.max' => 2,
-                'analytics.access' => false,
+                'contracts.max' => 2,
+                'team.members.max' => 1, // Owner only
+                'templates.max' => 1,
+                
+                // Features  
+                'team.invitations' => false,
+                'analytics.advanced' => false,
+                'analytics.insights' => false,
+                'notifications.email' => false,
+                'notifications.sms' => false,
+                'notifications.realtime' => false,
+                'api.access' => false,
                 'export.enabled' => false,
+                'bulk.operations' => false,
+                'support.priority' => false,
+                'support.phone' => false,
             ],
             'pro' => [
-                'billboards.max' => 100,
-                'contracts.max' => 500,
-                'team.members.max' => 10,
-                'analytics.access' => true,
-                'export.enabled' => true,
+                // Limits
+                'billboards.max' => 25,
+                'contracts.max' => 15,
+                'team.members.max' => 3,
+                'templates.max' => 5,
+                
+                // Features
+                'team.invitations' => true,
+                'analytics.advanced' => true,
+                'analytics.insights' => false,
+                'notifications.email' => true,
+                'notifications.sms' => false,
+                'notifications.realtime' => false,
+                'api.access' => false,
+                'export.enabled' => false,
+                'bulk.operations' => false,
+                'support.priority' => true,
+                'support.phone' => false,
             ],
             'business' => [
-                'billboards.max' => 500,
-                'contracts.max' => 2000,
-                'team.members.max' => 25,
-                'analytics.access' => true,
+                // Limits - unlimited
+                'billboards.max' => 'unlimited',
+                'contracts.max' => 'unlimited', 
+                'team.members.max' => 'unlimited',
+                'templates.max' => 'unlimited',
+                
+                // Features - all enabled
+                'team.invitations' => true,
+                'analytics.advanced' => true,
+                'analytics.insights' => true,
+                'notifications.email' => true,
+                'notifications.sms' => true,
+                'notifications.realtime' => true,
+                'api.access' => true,
                 'export.enabled' => true,
-                'priority.support' => true,
+                'bulk.operations' => true,
+                'support.priority' => true,
+                'support.phone' => true,
             ],
         ];
 
+        // Clear existing rules first
+        DB::table('plan_feature_rules')->truncate();
+
         foreach ($rules as $plan => $kv) {
             foreach ($kv as $k => $v) {
-                DB::table('plan_feature_rules')->updateOrInsert([
+                DB::table('plan_feature_rules')->insert([
                     'plan_id' => $plan,
                     'key' => $k,
-                ], [
                     'value' => is_bool($v) ? ($v ? '1' : '0') : (string) $v,
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
             }
         }

@@ -34,8 +34,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
     $middleware->alias([
       'ensure.company.access' => \App\Http\Middleware\EnsureUserCanAccessCompany::class,
-  'plan.feature' => \App\Http\Middleware\EnsurePlanFeature::class,
-  'plan.limit' => \App\Http\Middleware\EnsurePlanLimit::class,
+      'plan.feature' => \App\Http\Middleware\EnsurePlanFeature::class,
+      'plan.limit' => \App\Http\Middleware\EnsurePlanLimit::class,
+      'subscription.feature' => \App\Http\Middleware\CheckSubscriptionFeature::class,
     ]);
   })
   ->withExceptions(function (Exceptions $exceptions): void {

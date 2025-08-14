@@ -15,7 +15,7 @@ class BillboardFactory extends Factory
         return [
             'company_id' => Company::factory(),
             'name' => $this->faker->streetName(),
-            'code' => strtoupper($this->faker->bothify('BB-####')),
+            'code' => strtoupper($this->faker->unique()->bothify('BB-####-??')),
             'location' => $this->faker->address(),
             'latitude' => $this->faker->latitude(),
             'longitude' => $this->faker->longitude(),

@@ -14,12 +14,14 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     // Seed roles and permissions
     $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+    // Seed plan feature rules
+    $this->seed(\Database\Seeders\PlanFeatureRulesSeeder::class);
 });
 
 test('complete team invitation flow from invitation to login', function () {
     // Step 1: Setup company and owner
     $owner = User::factory()->create();
-    $company = Company::factory()->create(['name' => 'Test Company']);
+    $company = Company::factory()->create(['name' => 'Test Company', 'subscription_plan' => 'pro']);
 
     $owner->companies()->attach($company, [
         'role' => 'company_owner',
@@ -98,7 +100,7 @@ test('complete team invitation flow from invitation to login', function () {
 test('existing user invitation acceptance flow', function () {
     // Setup
     $owner = User::factory()->create();
-    $company = Company::factory()->create(['name' => 'Test Company']);
+    $company = Company::factory()->create(['name' => 'Test Company', 'subscription_plan' => 'pro']);
 
     $owner->companies()->attach($company, [
         'role' => 'company_owner',
@@ -146,8 +148,8 @@ test('existing user invitation acceptance flow', function () {
 
 test('multiple pending invitations are handled correctly', function () {
     $owner = User::factory()->create();
-    $company1 = Company::factory()->create(['name' => 'Company 1']);
-    $company2 = Company::factory()->create(['name' => 'Company 2']);
+    $company1 = Company::factory()->create(['name' => 'Company 1', 'subscription_plan' => 'pro']);
+    $company2 = Company::factory()->create(['name' => 'Company 2', 'subscription_plan' => 'pro']);
 
     // Setup owner for both companies
     $owner->companies()->attach($company1, ['role' => 'company_owner', 'is_owner' => true]);
@@ -195,7 +197,7 @@ test('multiple pending invitations are handled correctly', function () {
 });
 
 test('invitation link security and validation', function () {
-    $company = Company::factory()->create();
+    $company = Company::factory()->create(['subscription_plan' => 'pro']);
     $invitation = TeamInvitation::create([
         'company_id' => $company->id,
         'name' => 'Test User',
@@ -217,7 +219,7 @@ test('invitation link security and validation', function () {
 });
 
 test('invitation expiration cleanup', function () {
-    $company = Company::factory()->create();
+    $company = Company::factory()->create(['subscription_plan' => 'pro']);
 
     // Create expired invitation
     $expiredInvitation = TeamInvitation::create([
@@ -250,7 +252,7 @@ test('invitation expiration cleanup', function () {
 });
 
 test('role-based invitation permissions', function () {
-    $company = Company::factory()->create();
+    $company = Company::factory()->create(['subscription_plan' => 'pro']);
 
     // Create regular team member (not owner/admin)
     $teamMember = User::factory()->create();

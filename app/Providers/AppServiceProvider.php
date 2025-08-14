@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
+use App\Models\Billboard;
+use App\Observers\BillboardObserver;
 
 final class AppServiceProvider extends ServiceProvider
 {
@@ -34,6 +36,7 @@ final class AppServiceProvider extends ServiceProvider
         $this->configureModels();
         $this->configureUrl();
         $this->configureVite();
+        $this->configureObservers();
 
         JsonResource::withoutWrapping();
     }
@@ -87,5 +90,13 @@ final class AppServiceProvider extends ServiceProvider
     private function configureVite(): void
     {
         Vite::useAggressivePrefetching();
+    }
+
+    /**
+     * Configure model observers.
+     */
+    private function configureObservers(): void
+    {
+        Billboard::observe(BillboardObserver::class);
     }
 }

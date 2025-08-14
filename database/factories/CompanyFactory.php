@@ -30,7 +30,7 @@ class CompanyFactory extends Factory
             'industry' => fake()->word(),
             'size' => fake()->randomElement(['1-10', '11-50', '51-200', '200+']),
             'address' => fake()->address(),
-            'subscription_plan' => fake()->randomElement(['starter', 'professional', 'enterprise']),
+            'subscription_plan' => fake()->randomElement(['free', 'pro', 'business']),
             'subscription_expires_at' => now()->addYear(),
             'is_active' => true,
             'created_at' => now(),

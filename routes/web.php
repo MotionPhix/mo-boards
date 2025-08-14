@@ -271,6 +271,24 @@ Route::middleware(['auth', 'verified', 'ensure.company.access'])->group(function
         '/contracts/{contract:uuid}/export-pdf',
         [App\Http\Controllers\ContractController::class, 'exportPdf']
     )->name('contracts.export-pdf');
+
+    // System Notifications API routes
+    Route::prefix('api/notifications')->group(function () {
+        Route::get('/', [App\Http\Controllers\SystemNotificationController::class, 'index'])
+            ->name('notifications.index');
+        
+        Route::post('/{notification}/read', [App\Http\Controllers\SystemNotificationController::class, 'markAsRead'])
+            ->name('notifications.mark-read');
+        
+        Route::post('/{notification}/dismiss', [App\Http\Controllers\SystemNotificationController::class, 'dismiss'])
+            ->name('notifications.dismiss');
+        
+        Route::post('/mark-all-read', [App\Http\Controllers\SystemNotificationController::class, 'markAllAsRead'])
+            ->name('notifications.mark-all-read');
+        
+        Route::get('/unread-count', [App\Http\Controllers\SystemNotificationController::class, 'unreadCount'])
+            ->name('notifications.unread-count');
+    });
 });
 
 Route::get('/contracts/{contract:uuid}/client-sign', function (App\Models\Contract $contract) {
