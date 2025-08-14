@@ -22,7 +22,7 @@ class BillboardFactory extends Factory
             'width' => $this->faker->randomFloat(2, 5, 50),
             'height' => $this->faker->randomFloat(2, 5, 50),
             'monthly_rate' => $this->faker->randomFloat(2, 100, 5000),
-            'status' => $this->faker->randomElement(['active', 'inactive', 'maintenance']),
+            'status' => $this->faker->randomElement(['active', 'available', 'maintenance', 'removed']),
             'description' => $this->faker->sentence(),
         ];
     }

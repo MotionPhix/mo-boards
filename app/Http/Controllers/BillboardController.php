@@ -167,10 +167,16 @@ final class BillboardController extends Controller
   {
     $this->authorize('update', $billboard);
 
-  $billboard->loadMissing('company', 'media')
-    ->loadCount(['contracts as active_contracts_count' => function ($query) {
-      $query->where('status', 'active');
-    }]);
+    // Load the billboard with relationships and counts in a safer way
+    $billboard = Billboard::with('company', 'media')
+      ->withCount(['contracts as active_contracts_count' => function ($query) {
+        $query->where('status', 'active');
+      }])
+      ->find($billboard->id);
+      
+    if (!$billboard) {
+      abort(404);
+    }
 
   // Nearby/other billboards for clustering (same company, with coordinates)
   $nearby = $billboard->company

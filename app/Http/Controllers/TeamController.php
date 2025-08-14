@@ -244,6 +244,9 @@ final class TeamController extends Controller
         if ($invitation->company_id !== $company->id) {
             abort(403);
         }
+        
+        // Check if the user has permission to manage invitations
+        $this->authorize('manageInvitations', $company);
 
         // Delete the invitation
         $invitation->delete();

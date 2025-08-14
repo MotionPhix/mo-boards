@@ -153,6 +153,9 @@ test('multiple pending invitations are handled correctly', function () {
     $owner->companies()->attach($company1, ['role' => 'company_owner', 'is_owner' => true]);
     $owner->companies()->attach($company2, ['role' => 'company_owner', 'is_owner' => true]);
     $owner->update(['current_company_id' => $company1->id]);
+    
+    // Assign the Spatie role for permissions
+    $owner->assignRole('company_owner');
 
     $this->actingAs($owner);
 

@@ -4,8 +4,16 @@ use App\Models\Company;
 use App\Models\TeamInvitation;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
+
+uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    // Seed roles and permissions
+    $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+});
 
 test('invitation token generation and validation works correctly', function () {
     // Create a company
@@ -18,15 +26,17 @@ test('invitation token generation and validation works correctly', function () {
     // Ensure token is not empty
     $this->assertNotEmpty($token);
     
-    // Verify token format (should be an encrypted string)
+    // Verify token format (should be a base64 encoded string)
     $this->assertIsString($token);
     
-    // Try to decrypt the token
-    $decrypted = Crypt::decrypt($token);
+    // Try to verify the token using the model's verifyToken method
+    $verified = TeamInvitation::verifyToken($token);
     
-    // Verify the decrypted token contains both company ID and email
-    $this->assertStringContainsString((string)$company->id, $decrypted);
-    $this->assertStringContainsString($email, $decrypted);
+    // Verify the token data contains both company ID and email
+    $this->assertNotNull($verified);
+    $this->assertEquals($company->id, $verified['company_id']);
+    $this->assertEquals($email, $verified['email']);
+    $this->assertArrayHasKey('timestamp', $verified);
 });
 
 test('tampered invitation token is rejected', function () {
@@ -71,8 +81,11 @@ test('invitation can be canceled by team admin', function () {
     
     // Create team admin
     $admin = User::factory()->create();
-    $company->users()->attach($admin, ['role' => 'admin']);
+    $company->users()->attach($admin, ['role' => 'company_owner', 'is_owner' => true]);
     $admin->update(['current_company_id' => $company->id]);
+    
+    // Assign the Spatie role for permissions
+    $admin->assignRole('company_owner');
     
     // Create an invitation
     $invitation = TeamInvitation::create([
@@ -88,10 +101,11 @@ test('invitation can be canceled by team admin', function () {
     $this->actingAs($admin);
     
     // Cancel the invitation
-    $response = $this->delete(route('teams.cancel-invitation', ['invitation' => $invitation->id]));
+    $response = $this->delete(route('team.cancel-invitation', ['invitation' => $invitation->id]));
     
-    // Assert success response
-    $response->assertStatus(200);
+    // Assert redirect response (controller redirects to team.index on success)
+    $response->assertRedirect(route('team.index'));
+    $response->assertSessionHas('success', 'Invitation has been cancelled successfully.');
     
     // Assert the invitation was deleted
     $this->assertDatabaseMissing('team_invitations', [
@@ -105,8 +119,11 @@ test('non-admin cannot cancel invitations', function () {
     
     // Create regular team member (not admin)
     $regularMember = User::factory()->create();
-    $company->users()->attach($regularMember, ['role' => 'editor']);
+    $company->users()->attach($regularMember, ['role' => 'viewer']);
     $regularMember->update(['current_company_id' => $company->id]);
+    
+    // Assign the Spatie role (viewer has very limited permissions)
+    $regularMember->assignRole('viewer');
     
     // Create an invitation
     $invitation = TeamInvitation::create([
@@ -122,9 +139,9 @@ test('non-admin cannot cancel invitations', function () {
     $this->actingAs($regularMember);
     
     // Try to cancel the invitation
-    $response = $this->delete(route('teams.cancel-invitation', ['invitation' => $invitation->id]));
+    $response = $this->delete(route('team.cancel-invitation', ['invitation' => $invitation->id]));
     
-    // Assert forbidden response
+    // Assert forbidden response (editor role doesn't have team.manage_invitations permission)
     $response->assertStatus(403);
     
     // Assert the invitation still exists

@@ -4,7 +4,15 @@ use App\Models\Company;
 use App\Models\TeamInvitation;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
+
+uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    // Seed roles and permissions
+    $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+});
 
 test('user can accept invitation when logged in', function () {
     // Create a company
