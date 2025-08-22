@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Company;
 use App\Models\User;
+use App\Services\Billing\PlanGate;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class TeamPolicy
@@ -24,9 +25,17 @@ class TeamPolicy
      */
     public function inviteTeamMember(User $user, Company $company): bool
     {
-        // Only company owner and admins can invite team members
-        return $user->id === $company->owner_id || 
-               ($user->belongsToCompany($company) && in_array($user->getRoleInCompany($company), ['admin']));
+        // First check if user has permission based on role
+        $hasRolePermission = $user->isOwnerOf($company) ||
+                            in_array($user->getRoleInCompany($company), ['company_owner', 'manager']);
+
+        if (!$hasRolePermission) {
+            return false;
+        }
+
+        // Then check subscription plan allows team invitations
+        $planId = $company->subscription_plan ?? 'free';
+        return PlanGate::allows($planId, 'team.invitations', false);
     }
 
     /**
@@ -34,9 +43,9 @@ class TeamPolicy
      */
     public function removeTeamMember(User $user, Company $company): bool
     {
-        // Only company owner and admins can remove team members
-        return $user->id === $company->owner_id || 
-               ($user->belongsToCompany($company) && in_array($user->getRoleInCompany($company), ['admin']));
+        // Only company owner and managers can remove team members
+        return $user->isOwnerOf($company) ||
+               in_array($user->getRoleInCompany($company), ['company_owner', 'manager']);
     }
 
     /**
@@ -44,8 +53,18 @@ class TeamPolicy
      */
     public function updateTeamMember(User $user, Company $company): bool
     {
-        // Only company owner and admins can update team member roles
-        return $user->id === $company->owner_id || 
-               ($user->belongsToCompany($company) && in_array($user->getRoleInCompany($company), ['admin']));
+        // Only company owner and managers can update team member roles
+        return $user->isOwnerOf($company) ||
+               in_array($user->getRoleInCompany($company), ['company_owner', 'manager']);
+    }
+
+    /**
+     * Determine if the user can manage team invitations.
+     */
+    public function manageInvitations(User $user, Company $company): bool
+    {
+        // Only company owner and managers can manage invitations
+        return $user->isOwnerOf($company) ||
+               in_array($user->getRoleInCompany($company), ['company_owner', 'manager']);
     }
 }

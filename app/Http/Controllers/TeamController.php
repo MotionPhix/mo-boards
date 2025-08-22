@@ -23,9 +23,7 @@ final class TeamController extends Controller
 {
     public function __construct(
         private readonly SubscriptionLimitService $subscriptionLimitService
-    ) {
-        // Dependencies injected via constructor.
-    }
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -138,7 +136,7 @@ final class TeamController extends Controller
         // Remove the user from the company
         $company->users()->detach($member->id);
 
-        return redirect()->route('team.index')->with('success', 'Team member has been removed.');
+        return to_route('team.index')->with('success', 'Team member has been removed.');
     }
 
     public function acceptInvitation(Request $request, string $token): RedirectResponse
@@ -220,11 +218,11 @@ final class TeamController extends Controller
             $planId = $company->subscription_plan ?? 'free';
             $teamCount = $company->users()->count();
             $limit = \App\Services\Billing\PlanGate::limit($planId, 'team.members.max');
-            
-            $message = $planId === 'free' 
+
+            $message = $planId === 'free'
                 ? 'Team invitations are not available on the free plan. Upgrade to Pro or Business to invite team members.'
                 : "You've reached your team member limit ({$limit}) for the {$planId} plan. Please upgrade to invite more members.";
-                
+
             return redirect()->route('team.index')
                 ->with('error', $message)
                 ->with('upgrade_required', true);
@@ -266,7 +264,7 @@ final class TeamController extends Controller
         if ($invitation->company_id !== $company->id) {
             abort(403);
         }
-        
+
         // Check if the user has permission to manage invitations
         $this->authorize('manageInvitations', $company);
 

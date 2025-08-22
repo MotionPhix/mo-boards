@@ -37,6 +37,7 @@ return Application::configure(basePath: dirname(__DIR__))
       'plan.feature' => \App\Http\Middleware\EnsurePlanFeature::class,
       'plan.limit' => \App\Http\Middleware\EnsurePlanLimit::class,
       'subscription.feature' => \App\Http\Middleware\CheckSubscriptionFeature::class,
+      'subscription.access' => \App\Http\Middleware\EnsureSubscriptionAccess::class,
     ]);
   })
   ->withExceptions(function (Exceptions $exceptions): void {

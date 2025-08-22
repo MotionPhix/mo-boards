@@ -1,275 +1,259 @@
 <?php
 
-declare(strict_types=1);
-
 namespace App\Http\Controllers;
 
+use App\Enums\BillboardStatus;
 use App\Http\Requests\StoreBillboardRequest;
 use App\Http\Requests\UpdateBillboardRequest;
 use App\Http\Resources\BillboardResource;
 use App\Models\Billboard;
 use App\Services\BillboardService;
 use App\Services\SubscriptionLimitService;
-use App\Enums\BillboardStatus;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 
-final class BillboardController extends Controller
+class BillboardController extends Controller
 {
-  use AuthorizesRequests;
+    use AuthorizesRequests;
 
-  public function __construct(
-    private readonly BillboardService $billboardService,
-    private readonly SubscriptionLimitService $subscriptionLimitService
-  )
-  {
-  // Dependencies injected via constructor.
-  }
+    public function __construct(
+        private readonly BillboardService $billboardService,
+        private readonly SubscriptionLimitService $subscriptionLimitService
+    ) {}
 
-  public function index(Request $request): Response
-  {
-    $this->authorize('billboards.view_any', Billboard::class);
+    public function index(Request $request): Response
+    {
+        $this->authorize('billboards.view_any', Billboard::class);
 
-    $user = Auth::user();
-    $company = $user->currentCompany;
+        $user = Auth::user();
+        $company = $user->currentCompany;
 
-    if (!$company) {
-      return Inertia::render('companies/Select', [
-        'companies' => $user->companies()->get(),
-      ]);
+        if (! $company) {
+            return Inertia::render('companies/Select', [
+                'companies' => $user->companies()->get(),
+            ]);
+        }
+
+        // Get filters from request
+        $filters = $request->only([
+            'search', 'status', 'size', 'availability',
+            'min_rate', 'max_rate', 'created_from', 'created_to',
+            'sort_by', 'sort_direction',
+        ]);
+
+        // Get filtered billboards
+        $billboards = $this->billboardService->getFilteredBillboards($company, $filters);
+
+        // Get billboard stats
+        $stats = $this->billboardService->getBillboardStats($company);
+
+        // Get available sizes for filter (generated from width x height combinations)
+        $availableSizes = $company->billboards()
+            ->whereNotNull('width')
+            ->whereNotNull('height')
+            ->get()
+            ->map(function ($billboard) {
+                return $billboard->width.' x '.$billboard->height;
+            })
+            ->unique()
+            ->sort()
+            ->values();
+
+        return Inertia::render('billboards/Index', [
+            'billboards' => BillboardResource::collection($billboards),
+            'stats' => $stats,
+            'filters' => $filters,
+            'available_sizes' => $availableSizes,
+            'companies' => $user->companies()->get(),
+            'company' => [
+                'id' => $company->id,
+                'name' => $company->name,
+            ],
+            'permissions' => [
+                'can_create' => $user->can('create', Billboard::class) && $this->subscriptionLimitService->canCreateBillboard($company),
+                'can_export' => $user->can('exportData', Billboard::class),
+                'can_bulk_update' => $user->can('bulkUpdate', Billboard::class),
+            ],
+            'usage' => $this->subscriptionLimitService->getUsageSummary($company),
+        ]);
     }
 
-    // Get filters from request
-    $filters = $request->only([
-      'search', 'status', 'size', 'availability',
-      'min_rate', 'max_rate', 'created_from', 'created_to',
-      'sort_by', 'sort_direction',
-    ]);
+    public function create(): Response|RedirectResponse
+    {
+        $this->authorize('create', Billboard::class);
 
-    // Get filtered billboards
-    $billboards = $this->billboardService->getFilteredBillboards($company, $filters);
+        $user = Auth::user();
+        $company = $user->currentCompany;
 
-    // Get billboard stats
-    $stats = $this->billboardService->getBillboardStats($company);
+        if (! $company) {
+            return to_route('companies.index')
+                ->with('error', 'Please select a company first.');
+        }
 
-    // Get available sizes for filter (generated from width x height combinations)
-    $availableSizes = $company->billboards()
-      ->whereNotNull('width')
-      ->whereNotNull('height')
-      ->get()
-      ->map(function ($billboard) {
-        return $billboard->width . ' x ' . $billboard->height;
-      })
-      ->unique()
-      ->sort()
-      ->values();
+        // Check subscription limits
+        if (! $this->subscriptionLimitService->canCreateBillboard($company)) {
+            $remaining = $this->subscriptionLimitService->getRemainingQuota($company, 'billboards');
+            $planId = $company->subscription_plan ?? 'free';
 
-    return Inertia::render('billboards/Index', [
-      'billboards' => BillboardResource::collection($billboards),
-      'stats' => $stats,
-      'filters' => $filters,
-      'available_sizes' => $availableSizes,
-      'companies' => $user->companies()->get(),
-      'company' => [
-        'id' => $company->id,
-        'name' => $company->name,
-      ],
-      'permissions' => [
-        'can_create' => $user->can('create', Billboard::class) && $this->subscriptionLimitService->canCreateBillboard($company),
-        'can_export' => $user->can('exportData', Billboard::class),
-        'can_bulk_update' => $user->can('bulkUpdate', Billboard::class),
-      ],
-      'usage' => $this->subscriptionLimitService->getUsageSummary($company),
-    ]);
-  }
+            return redirect()->route('billboards.index')
+                ->with('error', "You've reached your billboard limit for the {$planId} plan. Please upgrade to create more billboards.")
+                ->with('upgrade_required', true);
+        }
 
-  public function create(): Response|RedirectResponse
-  {
-    $this->authorize('create', Billboard::class);
-
-    $user = Auth::user();
-    $company = $user->currentCompany;
-
-    if (!$company) {
-      return redirect()->route('companies.index')
-        ->with('error', 'Please select a company first.');
+        return Inertia::render('billboards/Create', [
+            'company' => [
+                'id' => $company->id,
+                'name' => $company->name,
+            ],
+            'statuses' => BillboardStatus::options(),
+        ]);
     }
 
-    // Check subscription limits
-    if (!$this->subscriptionLimitService->canCreateBillboard($company)) {
-      $remaining = $this->subscriptionLimitService->getRemainingQuota($company, 'billboards');
-      $planId = $company->subscription_plan ?? 'free';
-      
-      return redirect()->route('billboards.index')
-        ->with('error', "You've reached your billboard limit for the {$planId} plan. Please upgrade to create more billboards.")
-        ->with('upgrade_required', true);
+    public function store(StoreBillboardRequest $request): RedirectResponse
+    {
+        $this->authorize('create', Billboard::class);
+
+        $user = Auth::user();
+        $company = $user->currentCompany;
+
+        if (! $company) {
+            return redirect()->route('companies.index')
+                ->with('error', 'Please select a company first.');
+        }
+
+        // Check subscription limits
+        if (! $this->subscriptionLimitService->canCreateBillboard($company)) {
+            $planId = $company->subscription_plan ?? 'free';
+
+            return redirect()->route('billboards.index')
+                ->with('error', "You've reached your billboard limit for the {$planId} plan. Please upgrade to create more billboards.")
+                ->with('upgrade_required', true);
+        }
+
+        // Exclude 'images' from mass assignment; files are handled via Media Library
+        $data = $request->safe()->except(['images']);
+        $billboard = $company->billboards()->create($data);
+
+        // Attach uploaded images (if any)
+        if (request()->hasFile('images')) {
+            foreach ((array) request()->file('images') as $image) {
+                $billboard->addMedia($image)->toMediaCollection('images');
+            }
+        }
+
+        return redirect()->route('billboards.index')
+            ->with('success', "Billboard '{$billboard->name}' created successfully!");
     }
 
-    return Inertia::render('billboards/Create', [
-      'company' => [
-        'id' => $company->id,
-        'name' => $company->name,
-      ],
-      'statuses' => BillboardStatus::options(),
-    ]);
-  }
+    public function show(Billboard $billboard): Response
+    {
+        $this->authorize('view', $billboard);
 
-  public function store(StoreBillboardRequest $request): RedirectResponse
-  {
-    $this->authorize('create', Billboard::class);
+        $billboard->load(['company', 'media', 'contracts' => function ($query) {
+            $query->latest()->limit(5);
+        }]);
 
-    $user = Auth::user();
-    $company = $user->currentCompany;
+        // Get billboard revenue data
+        $revenueData = $this->billboardService->getBillboardRevenue($billboard);
 
-    if (!$company) {
-      return redirect()->route('companies.index')
-        ->with('error', 'Please select a company first.');
+        // Get utilization data
+        $utilizationData = $this->billboardService->getBillboardUtilization($billboard);
+
+        $user = Auth::user();
+
+        return Inertia::render('billboards/Show', [
+            'billboard' => new BillboardResource($billboard),
+            'revenue_data' => $revenueData,
+            'utilization_data' => $utilizationData,
+            'permissions' => [
+                'can_update' => $user->can('update', $billboard),
+                'can_delete' => $user->can('delete', $billboard),
+                'can_duplicate' => $user->can('duplicate', $billboard),
+                'can_view_analytics' => $user->can('viewAnalytics', $billboard),
+                'can_manage_media' => $user->can('manageMedia', $billboard),
+            ],
+        ]);
     }
 
-    // Check subscription limits
-    if (!$this->subscriptionLimitService->canCreateBillboard($company)) {
-      $planId = $company->subscription_plan ?? 'free';
-      
-      return redirect()->route('billboards.index')
-        ->with('error', "You've reached your billboard limit for the {$planId} plan. Please upgrade to create more billboards.")
-        ->with('upgrade_required', true);
+    public function edit(Billboard $billboard): Response
+    {
+        $this->authorize('update', $billboard);
+
+        // Load the billboard with relationships and counts in a safer way
+        $billboard = Billboard::with('company', 'media')
+            ->withCount(['contracts as active_contracts_count' => function ($query) {
+                $query->where('status', 'active');
+            }])
+            ->find($billboard->id);
+
+        if (! $billboard) {
+            abort(404);
+        }
+
+        // Nearby/other billboards for clustering (same company, with coordinates)
+        $nearby = $billboard->company
+          ? $billboard->company->billboards()
+              ->whereNotNull('latitude')
+              ->whereNotNull('longitude')
+              ->where('id', '!=', $billboard->id)
+              ->select('id', 'name', 'code', 'latitude', 'longitude')
+              ->limit(500)
+              ->get()
+              ->map(fn ($b) => [
+                  'id' => $b->id,
+                  'name' => $b->name,
+                  'code' => $b->code,
+                  'latitude' => (float) $b->latitude,
+                  'longitude' => (float) $b->longitude,
+              ])
+          : collect();
+
+        return Inertia::render('billboards/Edit', [
+            'billboard' => new BillboardResource($billboard),
+            'nearby_markers' => $nearby,
+            'statuses' => BillboardStatus::options(),
+        ]);
     }
 
-  // Exclude 'images' from mass assignment; files are handled via Media Library
-  $data = $request->safe()->except(['images']);
-  $billboard = $company->billboards()->create($data);
+    public function update(UpdateBillboardRequest $request, Billboard $billboard): RedirectResponse
+    {
+        $this->authorize('update', $billboard);
 
-    // Attach uploaded images (if any)
-    if (request()->hasFile('images')) {
-      foreach ((array) request()->file('images') as $image) {
-        $billboard->addMedia($image)->toMediaCollection('images');
-      }
+        // Exclude 'images' from mass assignment; files are handled via Media Library
+        $data = $request->safe()->except(['images']);
+        $billboard->update($data);
+
+        // Attach any newly uploaded images
+        if (request()->hasFile('images')) {
+            foreach ((array) request()->file('images') as $image) {
+                $billboard->addMedia($image)->toMediaCollection('images');
+            }
+        }
+
+        return redirect()->route('billboards.show', $billboard)
+            ->with('success', "Billboard '{$billboard->name}' updated successfully!");
     }
 
-    return redirect()->route('billboards.index')
-      ->with('success', "Billboard '{$billboard->name}' created successfully!");
-  }
+    public function destroy(Billboard $billboard): RedirectResponse
+    {
+        $this->authorize('delete', $billboard);
 
-  public function show(Billboard $billboard): Response
-  {
-    $this->authorize('view', $billboard);
+        // Check if billboard has active contracts
+        $activeContracts = $billboard->contracts()->where('status', 'active')->count();
 
-  $billboard->load(['company','media', 'contracts' => function ($query) {
-      $query->latest()->limit(5);
-    }]);
+        if ($activeContracts > 0) {
+            return redirect()->back()
+                ->with('error', 'Cannot delete billboard with active contracts.');
+        }
 
-    // Get billboard revenue data
-    $revenueData = $this->billboardService->getBillboardRevenue($billboard);
+        $name = $billboard->name;
+        $billboard->delete();
 
-    // Get utilization data
-    $utilizationData = $this->billboardService->getBillboardUtilization($billboard);
-
-    $user = Auth::user();
-
-    return Inertia::render('billboards/Show', [
-      'billboard' => new BillboardResource($billboard),
-      'revenue_data' => $revenueData,
-      'utilization_data' => $utilizationData,
-      'permissions' => [
-        'can_update' => $user->can('update', $billboard),
-        'can_delete' => $user->can('delete', $billboard),
-        'can_duplicate' => $user->can('duplicate', $billboard),
-        'can_view_analytics' => $user->can('viewAnalytics', $billboard),
-        'can_manage_media' => $user->can('manageMedia', $billboard),
-      ],
-    ]);
-  }
-
-  public function edit(Billboard $billboard): Response
-  {
-    $this->authorize('update', $billboard);
-
-    // Load the billboard with relationships and counts in a safer way
-    $billboard = Billboard::with('company', 'media')
-      ->withCount(['contracts as active_contracts_count' => function ($query) {
-        $query->where('status', 'active');
-      }])
-      ->find($billboard->id);
-      
-    if (!$billboard) {
-      abort(404);
+        return redirect()->route('billboards.index')
+            ->with('success', "Billboard '{$name}' deleted successfully!");
     }
-
-  // Nearby/other billboards for clustering (same company, with coordinates)
-  $nearby = $billboard->company
-    ? $billboard->company->billboards()
-        ->whereNotNull('latitude')
-        ->whereNotNull('longitude')
-        ->where('id', '!=', $billboard->id)
-        ->select('id', 'name', 'code', 'latitude', 'longitude')
-        ->limit(500)
-        ->get()
-        ->map(fn ($b) => [
-          'id' => $b->id,
-          'name' => $b->name,
-          'code' => $b->code,
-          'latitude' => (float) $b->latitude,
-          'longitude' => (float) $b->longitude,
-        ])
-    : collect();
-
-  return Inertia::render('billboards/Edit', [
-      'billboard' => new BillboardResource($billboard),
-      'nearby_markers' => $nearby,
-  'statuses' => BillboardStatus::options(),
-    ]);
-  }
-
-  public function update(UpdateBillboardRequest $request, Billboard $billboard): RedirectResponse
-  {
-    $this->authorize('update', $billboard);
-
-  // Exclude 'images' from mass assignment; files are handled via Media Library
-  $data = $request->safe()->except(['images']);
-  $billboard->update($data);
-
-    // Attach any newly uploaded images
-    if (request()->hasFile('images')) {
-      foreach ((array) request()->file('images') as $image) {
-        $billboard->addMedia($image)->toMediaCollection('images');
-      }
-    }
-
-    return redirect()->route('billboards.show', $billboard)
-      ->with('success', "Billboard '{$billboard->name}' updated successfully!");
-  }
-
-
-
-  public function destroy(Billboard $billboard): RedirectResponse
-  {
-    $this->authorize('delete', $billboard);
-
-    // Check if billboard has active contracts
-    $activeContracts = $billboard->contracts()->where('status', 'active')->count();
-
-    if ($activeContracts > 0) {
-      return redirect()->back()
-        ->with('error', 'Cannot delete billboard with active contracts.');
-    }
-
-    $name = $billboard->name;
-    $billboard->delete();
-
-    return redirect()->route('billboards.index')
-      ->with('success', "Billboard '{$name}' deleted successfully!");
-  }
-
-
-
-
-
-
-
-
 }

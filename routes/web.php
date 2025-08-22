@@ -130,7 +130,8 @@ Route::middleware(['auth', 'verified', 'ensure.company.access'])->group(function
     Route::get(
         '/team/invite',
         [App\Http\Controllers\TeamController::class, 'inviteModal']
-    )->name('team.invite-modal');
+    )->middleware('subscription.access:team.invitations')
+        ->name('team.invite-modal');
 
     Route::get(
         '/team/{member}/edit',
@@ -146,8 +147,7 @@ Route::middleware(['auth', 'verified', 'ensure.company.access'])->group(function
     Route::post(
         '/team/invite',
         [App\Http\Controllers\TeamController::class, 'invite']
-    )->middleware('plan.limit:team.members.max,company.team.members.count')
-        ->name('team.invite');
+    )->name('team.invite');
 
     Route::delete(
         '/team/invitations/{invitation}',
@@ -276,16 +276,16 @@ Route::middleware(['auth', 'verified', 'ensure.company.access'])->group(function
     Route::prefix('api/notifications')->group(function () {
         Route::get('/', [App\Http\Controllers\SystemNotificationController::class, 'index'])
             ->name('notifications.index');
-        
+
         Route::post('/{notification}/read', [App\Http\Controllers\SystemNotificationController::class, 'markAsRead'])
             ->name('notifications.mark-read');
-        
+
         Route::post('/{notification}/dismiss', [App\Http\Controllers\SystemNotificationController::class, 'dismiss'])
             ->name('notifications.dismiss');
-        
+
         Route::post('/mark-all-read', [App\Http\Controllers\SystemNotificationController::class, 'markAllAsRead'])
             ->name('notifications.mark-all-read');
-        
+
         Route::get('/unread-count', [App\Http\Controllers\SystemNotificationController::class, 'unreadCount'])
             ->name('notifications.unread-count');
     });
