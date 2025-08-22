@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Enums\SubscriptionFeature;
 use App\Models\Company;
-use App\Models\BillingPlan;
 use Illuminate\Support\Collection;
 
 class SubscriptionFeatureService
@@ -15,7 +14,7 @@ class SubscriptionFeatureService
     public function hasFeature(Company $company, SubscriptionFeature $feature): bool
     {
         $planFeatures = $this->getCompanyFeatures($company);
-        
+
         return $planFeatures->contains($feature->value);
     }
 
@@ -29,7 +28,7 @@ class SubscriptionFeatureService
         }
 
         $limit = $limitFeature->getLimit();
-        
+
         return $limit !== null && $currentCount >= $limit;
     }
 
@@ -140,7 +139,7 @@ class SubscriptionFeatureService
         }
 
         // Business plan has unlimited billboards
-        return $this->hasFeature($company, SubscriptionFeature::UNLIMITED_BILLBOARDS) || 
+        return $this->hasFeature($company, SubscriptionFeature::UNLIMITED_BILLBOARDS) ||
                $this->hasFeature($company, SubscriptionFeature::BASIC_BILLBOARDS);
     }
 
@@ -161,7 +160,7 @@ class SubscriptionFeatureService
         }
 
         // Business plan has unlimited contracts
-        return $this->hasFeature($company, SubscriptionFeature::UNLIMITED_CONTRACTS) || 
+        return $this->hasFeature($company, SubscriptionFeature::UNLIMITED_CONTRACTS) ||
                $this->hasFeature($company, SubscriptionFeature::BASIC_CONTRACTS);
     }
 
@@ -170,7 +169,7 @@ class SubscriptionFeatureService
      */
     public function canInviteTeamMember(Company $company): bool
     {
-        if (!$this->hasFeature($company, SubscriptionFeature::TEAM_INVITATIONS) && 
+        if (!$this->hasFeature($company, SubscriptionFeature::TEAM_INVITATIONS) &&
             !$this->hasFeature($company, SubscriptionFeature::UNLIMITED_TEAM_MEMBERS)) {
             return false; // Free plan is owner-only
         }
@@ -246,8 +245,8 @@ class SubscriptionFeatureService
         if ($this->hasFeature($company, SubscriptionFeature::UNLIMITED_BILLBOARDS)) {
             return null; // Unlimited
         }
-        
-        return $this->getFeatureLimit($company, SubscriptionFeature::MAX_BILLBOARDS_25) ?? 
+
+        return $this->getFeatureLimit($company, SubscriptionFeature::MAX_BILLBOARDS_25) ??
                $this->getFeatureLimit($company, SubscriptionFeature::MAX_BILLBOARDS_5);
     }
 
@@ -256,8 +255,8 @@ class SubscriptionFeatureService
         if ($this->hasFeature($company, SubscriptionFeature::UNLIMITED_CONTRACTS)) {
             return null; // Unlimited
         }
-        
-        return $this->getFeatureLimit($company, SubscriptionFeature::MAX_CONTRACTS_15) ?? 
+
+        return $this->getFeatureLimit($company, SubscriptionFeature::MAX_CONTRACTS_15) ??
                $this->getFeatureLimit($company, SubscriptionFeature::MAX_CONTRACTS_2);
     }
 
@@ -266,7 +265,7 @@ class SubscriptionFeatureService
         if ($this->hasFeature($company, SubscriptionFeature::UNLIMITED_TEAM_MEMBERS)) {
             return null; // Unlimited
         }
-        
+
         return $this->getFeatureLimit($company, SubscriptionFeature::MAX_TEAM_MEMBERS_3) ?? 1; // Owner only
     }
 
@@ -275,18 +274,7 @@ class SubscriptionFeatureService
         if ($this->hasFeature($company, SubscriptionFeature::UNLIMITED_TEMPLATES)) {
             return null; // Unlimited
         }
-        
-        return $this->getFeatureLimit($company, SubscriptionFeature::MAX_TEMPLATES_5);
-    }
-}e App\Services;
 
-class SubscriptionFeatureService
-{
-    /**
-     * Create a new class instance.
-     */
-    public function __construct()
-    {
-        //
+        return $this->getFeatureLimit($company, SubscriptionFeature::MAX_TEMPLATES_5);
     }
 }

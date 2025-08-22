@@ -252,7 +252,7 @@ final class TeamController extends Controller
                 ->notify(new \App\Notifications\TeamInvitationNotification($invitation, $request->user()));
         }
 
-        return redirect()->route('team.index')
+        return to_route('team.index')
             ->with('success', 'Invitation has been sent successfully.');
     }
 
@@ -275,12 +275,21 @@ final class TeamController extends Controller
             ->with('success', 'Invitation has been cancelled successfully.');
     }
 
-    protected function inviteModal(Request $request): Response
+    public function inviteModal(Request $request): Response | RedirectResponse
     {
         $company = $request->user()->currentCompany;
 
+        // Check if user can invite team members
+        if (! $request->user()->can('inviteTeamMember', $company)) {
+            abort('403', 'You are not authorized to invite team members.');
+        }
+
+        // Check subscription limit for team members
+        if (! $this->subscriptionLimitService->canInviteTeamMember($company)) {
+            abort(403, 'Your subscription does not allow inviting more team members.');
+        }
+
         // Filter roles for team invitations - exclude super_admin and company_owner
-        // Super admins are created via tinker only, company owners are the ones inviting
         $roles = Role::whereNotIn('name', ['super_admin', 'company_owner'])
             ->get()
             ->map(function ($role) {
@@ -297,7 +306,7 @@ final class TeamController extends Controller
         ]);
     }
 
-    protected function editModal(Request $request, User $member): Response
+    public function editModal(Request $request, User $member): Response
     {
         $company = $request->user()->currentCompany;
 

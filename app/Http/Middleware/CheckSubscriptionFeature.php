@@ -17,32 +17,32 @@ class CheckSubscriptionFeature
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next, string $feature): Response
     {
         $user = $request->user();
-        
-        if (!$user || !$user->current_company_id) {
+
+        if (! $user || ! $user->current_company_id) {
             return redirect()->route('companies.index')
                 ->with('error', 'Please select a company to access this feature.');
         }
 
         $company = $user->currentCompany;
-        
-        if (!$company) {
+
+        if (! $company) {
             return redirect()->route('companies.index')
                 ->with('error', 'Invalid company selected.');
         }
 
         $subscriptionFeature = SubscriptionFeature::tryFrom($feature);
-        
-        if (!$subscriptionFeature) {
+
+        if (! $subscriptionFeature) {
             // If feature doesn't exist, allow access (fail open)
             return $next($request);
         }
 
-        if (!$this->subscriptionFeatureService->hasFeature($company, $subscriptionFeature)) {
+        if (! $this->subscriptionFeatureService->hasFeature($company, $subscriptionFeature)) {
             return $this->handleUnauthorizedFeature($request, $subscriptionFeature, $company);
         }
 
@@ -52,13 +52,13 @@ class CheckSubscriptionFeature
     private function handleUnauthorizedFeature(Request $request, SubscriptionFeature $feature, $company): Response
     {
         $message = $this->getFeatureUpgradeMessage($feature);
-        
+
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => $message,
                 'feature' => $feature->value,
                 'current_plan' => $company->subscription_plan ?? 'free',
-                'upgrade_required' => true
+                'upgrade_required' => true,
             ], 403);
         }
 
@@ -69,7 +69,7 @@ class CheckSubscriptionFeature
 
     private function getFeatureUpgradeMessage(SubscriptionFeature $feature): string
     {
-        return match($feature) {
+        return match ($feature) {
             SubscriptionFeature::TEAM_INVITATIONS => 'Team invitations are available with Pro and Business plans. Upgrade to invite team members.',
             SubscriptionFeature::UNLIMITED_TEAM_MEMBERS => 'Unlimited team members are available with the Business plan.',
             SubscriptionFeature::ADVANCED_ANALYTICS => 'Advanced analytics are available with Pro and Business plans.',

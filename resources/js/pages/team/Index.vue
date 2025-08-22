@@ -79,8 +79,13 @@ const page = usePage()
 const auth = computed(() => page.props.auth as any)
 const userAbilities = computed(() => auth.value?.user?.abilities || {})
 
-// Use abilities from auth system instead of props for better security
-const canInviteUsers = computed(() => userAbilities.value.can_invite_team_members)
+// Get subscription status
+const subscription = computed(() => page.props.subscription as any)
+
+// Combine ability and subscription checks for inviting users
+const canInviteUsers = computed(() => {
+  return userAbilities.value.can_invite_team_members; // && subscription.value?.canInviteMoreTeamMembers
+})
 const canRemoveUsers = computed(() => userAbilities.value.can_remove_team_members)
 const canUpdateRoles = computed(() => userAbilities.value.can_update_team_roles)
 
@@ -183,16 +188,13 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
         </div>
 
         <!-- Invite User Modal Link -->
-        <ModalLink
+        <Button
           v-if="canInviteUsers"
-          href="/team/invite"
-          class="shadow-sm"
-        >
-          <Button>
-            <UserPlus class="h-4 w-4 mr-2" />
-            Invite User
-          </Button>
-        </ModalLink>
+          :href="route('team.invite-modal')"
+          :as="ModalLink">
+          <UserPlus />
+          Invite User
+        </Button>
       </div>
 
       <!-- Team Members Card -->

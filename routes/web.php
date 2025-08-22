@@ -130,8 +130,7 @@ Route::middleware(['auth', 'verified', 'ensure.company.access'])->group(function
     Route::get(
         '/team/invite',
         [App\Http\Controllers\TeamController::class, 'inviteModal']
-    )->middleware('subscription.access:team.invitations')
-        ->name('team.invite-modal');
+    )->name('team.invite-modal');
 
     Route::get(
         '/team/{member}/edit',
