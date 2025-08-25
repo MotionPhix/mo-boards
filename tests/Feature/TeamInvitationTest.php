@@ -13,25 +13,7 @@ use Illuminate\Support\Facades\Notification;
 use Inertia\Testing\AssertableInertia as Assert;
 use Mockery as M;
 use Spatie\Permission\Models\Permission;
-
-// Lightweight in-memory user for actingAs and notifications, without loading App\Models\User
-final class FakeUser implements Illuminate\Contracts\Auth\Authenticatable
-{
-    use Illuminate\Auth\Authenticatable, \Illuminate\Notifications\Notifiable;
-
-    public $id = 1;
-
-    public $email = 'owner@example.com';
-
-    public $name = 'Owner';
-
-    public $currentCompany;
-
-    public function can($ability, $arguments = [])
-    {
-        return true;
-    }
-}
+use Tests\Support\FakeUser;
 
 uses(RefreshDatabase::class);
 
@@ -91,7 +73,7 @@ test('team owner can view the invitation form', function () {
 test('team owner can send invitation and email is sent', function () {
     // Seed the plan feature rules
     $this->seed(\Database\Seeders\PlanFeatureRulesSeeder::class);
-    
+
     Notification::fake();
 
     // Real owner and company using DB
@@ -126,7 +108,7 @@ test('team owner can send invitation and email is sent', function () {
 test('existing user receives invitation email', function () {
     // Seed the plan feature rules
     $this->seed(\Database\Seeders\PlanFeatureRulesSeeder::class);
-    
+
     Notification::fake();
 
     // Real owner/company and existing user in DB
@@ -159,7 +141,7 @@ test('existing user receives invitation email', function () {
 test('user cannot be invited to a company they already belong to', function () {
     // Seed the plan feature rules
     $this->seed(\Database\Seeders\PlanFeatureRulesSeeder::class);
-    
+
     // Real owner/company and existing member already attached
     $owner = User::factory()->create();
     $company = Company::factory()->create(['subscription_plan' => 'pro']); // Use pro plan

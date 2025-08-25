@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Head, router, usePage } from '@inertiajs/vue3'
+import { Head, Link, router, usePage } from '@inertiajs/vue3'
 import { toast } from 'vue-sonner'
 import {
   Users, UserPlus, Mail, X,
-  Trash2, Pencil as Edit, ShieldCheck, Shield
+  Trash2, Pencil as Edit, ShieldCheck, Shield,
+  FileUser
 } from 'lucide-vue-next'
 import AppLayout from '@/layouts/AppLayout.vue'
 import { Button } from '@/components/ui/button'
@@ -75,27 +76,19 @@ interface Props {
 const props = defineProps<Props>()
 const page = usePage()
 
-// Get user abilities from auth
-const auth = computed(() => page.props.auth as any)
-const userAbilities = computed(() => auth.value?.user?.abilities || {})
-
 // Get subscription status
-const subscription = computed(() => page.props.subscription as any)
+const subscription = computed(() => (page.props as any).subscription || null)
 
-// Combine ability and subscription checks for inviting users
+// Use props.userPermissions which now comes from the CompanyTeamPolicy
 const canInviteUsers = computed(() => {
-  return userAbilities.value.can_invite_team_members; // && subscription.value?.canInviteMoreTeamMembers
+  const planAllows = subscription.value?.can_invite_team ?? true
+  return props.userPermissions.canInviteUsers && planAllows
 })
-const canRemoveUsers = computed(() => userAbilities.value.can_remove_team_members)
-const canUpdateRoles = computed(() => userAbilities.value.can_update_team_roles)
+const canRemoveUsers = computed(() => props.userPermissions.canRemoveUsers)
+const canUpdateRoles = computed(() => props.userPermissions.canUpdateRoles)
 
-// Security: Show Role Permissions section only to users who can manage roles/permissions
-const canViewRolePermissions = computed(() => {
-  return userAbilities.value.is_super_admin ||
-         userAbilities.value.is_company_owner ||
-         userAbilities.value.can_manage_roles ||
-         userAbilities.value.can_update_team_roles
-})
+// Security: Show Role Permissions section only for users who can update roles
+const canViewRolePermissions = computed(() => props.userPermissions.canUpdateRoles)
 
 // Remove a team member
 const removeMember = (member: TeamMember) => {
@@ -128,7 +121,6 @@ const cancelInvitation = (invitation: TeamInvitation) => {
 // Role display helpers
 const getRoleBadgeVariant = (role: string): "default" | "destructive" | "outline" | "secondary" => {
   const mapping: Record<string, "default" | "destructive" | "outline" | "secondary"> = {
-    'owner': 'destructive',
     'company_owner': 'destructive',
     'admin': 'secondary',
     'manager': 'default',
@@ -140,16 +132,19 @@ const getRoleBadgeVariant = (role: string): "default" | "destructive" | "outline
   return mapping[role] || 'outline';
 }
 
-const getRoleDisplay = (role: string) => {
-  return {
-    'owner': 'Owner',
+const getRoleDisplay = (role: string | null) => {
+  if (!role) return 'Unknown'
+
+  const roleDisplay = {
     'company_owner': 'Owner',
     'admin': 'Administrator',
     'manager': 'Manager',
     'member': 'Member',
     'editor': 'Editor',
     'viewer': 'Viewer'
-  }[role] || role.charAt(0).toUpperCase() + role.slice(1)
+  }[role]
+
+  return roleDisplay || role.charAt(0).toUpperCase() + role.slice(1)
 }
 
 // Role icon
@@ -176,7 +171,9 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
     <meta name="description" :content="pageDescription" />
   </Head>
 
-  <AppLayout title="Team Management" :breadcrumbs="breadcrumbs">
+  <AppLayout
+    title="Team Management"
+    :breadcrumbs="breadcrumbs">
     <div class="max-w-4xl">
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
@@ -246,7 +243,7 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
                       <!-- Edit Member Modal Link -->
                       <ModalLink
                         v-if="member.role !== 'company_owner' &&member.can.edit && canUpdateRoles"
-                        :href="`/team/${member.id}/edit`">
+                        :href="route('team.edit-modal', member.id)">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -255,6 +252,15 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
                           <Edit class="h-4 w-4" />
                         </Button>
                       </ModalLink>
+
+                      <Button
+                        :as="Link"
+                        variant="ghost"
+                        size="sm"
+                        :href="route('team.show', member.id)">
+                        <span class="sr-only">Show</span>
+                        <FileUser class="h-4 w-4" />
+                      </Button>
 
                       <Button
                         v-if="member.can.delete && canRemoveUsers"

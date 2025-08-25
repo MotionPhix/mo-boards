@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Policies\CompanyTeamPolicy;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -14,7 +15,7 @@ final class TeamMemberUpdateRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()->can('updateTeamMember', $this->user()->currentCompany);
+        return $this->user()->can('update', [CompanyTeamPolicy::class, $this->user()->currentCompany, $this->route('member')]);
     }
 
     /**

@@ -9,6 +9,7 @@ use App\Http\Requests\TeamMemberUpdateRequest;
 use App\Http\Resources\TeamResource;
 use App\Models\TeamInvitation;
 use App\Models\User;
+use App\Policies\CompanyTeamPolicy;
 use App\Services\SubscriptionLimitService;
 use Carbon\Carbon;
 use Exception;
@@ -40,7 +41,7 @@ final class TeamController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
-                    'role' => $user->pivot->role,
+                    'role' => $user->pivot->role ?? $user->roles->first()->name,
                     'is_owner' => (bool) $user->pivot->is_owner,
                     'avatar' => $user->profile_photo_url,
                     'joined_at' => $user->pivot->created_at->format('M d, Y'),
@@ -102,18 +103,21 @@ final class TeamController extends Controller
     {
         $company = $request->user()->currentCompany;
 
+        // Authorize using the new policy
+        $this->authorize('update', [CompanyTeamPolicy::class, $company, $member]);
+
         // Update user role in the company
-        $company->users()->updateExistingPivot($member->id, ['role' => $request->role]);
+        $company->users()->updateExistingPivot($member->id, ['role' => $request->validated('role')]);
 
         // Update the user's Spatie role
         // First, remove any existing roles that might conflict
         $existingRole = $member->getRoleInCompany($company);
-        if ($existingRole && $existingRole !== $request->role) {
+        if ($existingRole && $existingRole !== $request->validated('role')) {
             $member->removeRole($existingRole);
         }
 
         // Assign the new role
-        $member->assignRole($request->role);
+        $member->assignRole($request->validated('role'));
 
         return redirect()->route('team.index')->with('success', 'Team member role has been updated.');
     }
@@ -122,16 +126,8 @@ final class TeamController extends Controller
     {
         $company = $request->user()->currentCompany;
 
-        // Make sure we're not removing the company owner
-        $isOwner = $company->users()->where('users.id', $member->id)->wherePivot('is_owner', true)->exists();
-        if ($isOwner) {
-            return redirect()->route('team.index')->with('error', 'The company owner cannot be removed.');
-        }
-
-        // Make sure we're not removing ourselves
-        if ($request->user()->id === $member->id) {
-            return redirect()->route('team.index')->with('error', 'You cannot remove yourself from the team.');
-        }
+        // Authorize using the new policy
+        $this->authorize('delete', [CompanyTeamPolicy::class, $company, $member]);
 
         // Remove the user from the company
         $company->users()->detach($member->id);
@@ -213,7 +209,10 @@ final class TeamController extends Controller
     {
         $company = $request->user()->currentCompany;
 
-        // Check subscription limits for team invitations
+        // Authorize using the new policy
+        $this->authorize('invite', [CompanyTeamPolicy::class, $company]);
+
+        // Already checked in the policy, but we still need the message
         if (!$this->subscriptionLimitService->canInviteTeamMember($company)) {
             $planId = $company->subscription_plan ?? 'free';
             $teamCount = $company->users()->count();
@@ -228,8 +227,11 @@ final class TeamController extends Controller
                 ->with('upgrade_required', true);
         }
 
+        // Get validated data
+        $data = $request->validated();
+
         // Check if the user already exists
-        $existingUser = User::where('email', $request->email)->first();
+        $existingUser = User::where('email', $data['email'])->first();
 
         if ($existingUser) {
             // If user already belongs to the company, redirect with an error
@@ -239,16 +241,16 @@ final class TeamController extends Controller
             }
 
             // Create an invitation for the existing user
-            $invitation = TeamInvitation::createInvitation($company, $request->validated());
+            $invitation = TeamInvitation::createInvitation($company, $data);
 
             // Send invitation email
             $existingUser->notify(new \App\Notifications\TeamInvitationNotification($invitation, $request->user()));
         } else {
             // Create an invitation for a new user
-            $invitation = TeamInvitation::createInvitation($company, $request->validated());
+            $invitation = TeamInvitation::createInvitation($company, $data);
 
             // Send invitation email with account setup link
-            Notification::route('mail', $request->email)
+            Notification::route('mail', $data['email'])
                 ->notify(new \App\Notifications\TeamInvitationNotification($invitation, $request->user()));
         }
 
@@ -265,8 +267,8 @@ final class TeamController extends Controller
             abort(403);
         }
 
-        // Check if the user has permission to manage invitations
-        $this->authorize('manageInvitations', $company);
+        // Authorize using the new policy
+        $this->authorize('manageInvitations', [CompanyTeamPolicy::class, $company]);
 
         // Delete the invitation
         $invitation->delete();
@@ -275,18 +277,21 @@ final class TeamController extends Controller
             ->with('success', 'Invitation has been cancelled successfully.');
     }
 
-    public function inviteModal(Request $request): Response | RedirectResponse
+    public function inviteModal(Request $request): Response|RedirectResponse
     {
         $company = $request->user()->currentCompany;
 
-        // Check if user can invite team members
-        if (! $request->user()->can('inviteTeamMember', $company)) {
-            abort('403', 'You are not authorized to invite team members.');
-        }
+        // Consolidated authorization check with detailed error messages
+        $authResult = $this->getDetailedInviteAuthorization($request->user(), $company);
 
-        // Check subscription limit for team members
-        if (! $this->subscriptionLimitService->canInviteTeamMember($company)) {
-            abort(403, 'Your subscription does not allow inviting more team members.');
+        if (!$authResult['authorized']) {
+            $redirect = to_route('team.index')->with('error', $authResult['message']);
+
+            if (isset($authResult['upgrade_required']) && $authResult['upgrade_required']) {
+                $redirect->with('upgrade_required', true);
+            }
+
+            return $redirect;
         }
 
         // Filter roles for team invitations - exclude super_admin and company_owner
@@ -348,6 +353,150 @@ final class TeamController extends Controller
         return Inertia::render('team/EditMemberModal', [
             'member' => $memberData,
             'roles' => $roles,
+        ]);
+    }
+
+    /**
+     * Get detailed authorization result for team member invitation
+     */
+    private function getDetailedInviteAuthorization(User $user, $company): array
+    {
+        // Check company access
+        if (!$user->canAccessCompany($company)) {
+            return [
+                'authorized' => false,
+                'reason' => 'company_access',
+                'message' => 'You do not have access to this company.',
+            ];
+        }
+
+        // Check role permission
+        $hasRolePermission = $user->isOwnerOf($company) ||
+                            in_array($user->getRoleInCompany($company), ['company_owner', 'manager']);
+
+        if (!$hasRolePermission) {
+            return [
+                'authorized' => false,
+                'reason' => 'role_permission',
+                'message' => 'You are not authorized to invite team members. Only company owners and managers can invite team members.',
+            ];
+        }
+
+        // Check subscription plan and limits
+        $planId = $company->subscription_plan ?? 'free';
+        $planAllows = \App\Services\Billing\PlanGate::allows($planId, 'team.invitations', false);
+
+        if (!$planAllows) {
+            $teamCount = $company->users()->count();
+            $limit = \App\Services\Billing\PlanGate::limit($planId, 'team.members.max');
+
+            $message = $planId === 'free'
+                ? 'Team invitations are not available on the free plan. Upgrade to Pro or Business to invite team members.'
+                : (is_null($limit)
+                    ? 'Your current plan does not allow additional team invitations.'
+                    : "You've reached your team member limit ({$limit}) for the {$planId} plan. Please upgrade to invite more members.");
+
+            return [
+                'authorized' => false,
+                'reason' => 'subscription_limit',
+                'message' => $message,
+                'upgrade_required' => true,
+                'current_plan' => $planId,
+                'team_count' => $teamCount,
+                'team_limit' => $limit,
+            ];
+        }
+
+        // Check if at team limit (additional check via SubscriptionLimitService)
+        if (!$this->subscriptionLimitService->canInviteTeamMember($company)) {
+            $teamCount = $company->users()->count();
+            $limit = \App\Services\Billing\PlanGate::limit($planId, 'team.members.max');
+
+            $message = is_null($limit)
+                ? "Your current plan ({$planId}) does not allow additional team invitations."
+                : "You've reached your team member limit ({$limit}) for the {$planId} plan. Please upgrade to invite more members.";
+
+            return [
+                'authorized' => false,
+                'reason' => 'team_limit_reached',
+                'message' => $message,
+                'upgrade_required' => true,
+                'current_plan' => $planId,
+                'team_count' => $teamCount,
+                'team_limit' => $limit,
+            ];
+        }
+
+        return [
+            'authorized' => true,
+            'reason' => null,
+            'message' => null,
+        ];
+    }
+
+    public function show(Request $request, User $member): Response
+    {
+        $company = $request->user()->currentCompany;
+
+        // Authorize using the CompanyTeamPolicy
+        $this->authorize('view', [CompanyTeamPolicy::class, $company, $member]);
+
+        // Get the member with pivot data and load relationships
+        $memberWithPivot = $company->users()
+            ->with(['roles.permissions'])
+            ->where('users.id', $member->id)
+            ->first();
+
+        // Get member's role - keeping the complex logic commented for future implementation
+        /*$roleName = match (true) {
+            // If we have a member with pivot role, use that
+            $memberWithPivot && !empty($memberWithPivot->pivot->role) => $memberWithPivot->pivot->role,
+            // If member exists and is owner but no pivot role, use company_owner
+            $memberWithPivot && $memberWithPivot->pivot->is_owner => 'company_owner',
+            // If member exists with Spatie roles, use first role
+            $memberWithPivot && $memberWithPivot->roles->isNotEmpty() => $memberWithPivot->roles->first()->name,
+            // If none of the above, we have no valid member/role
+            default => null
+        };*/
+
+        // For now, use a simpler approach that works with seeded data
+        if (!$memberWithPivot) {
+            abort(404);
+        }
+
+        // Get role name from Spatie first, then fallback to pivot if it exists
+        $roleName = $memberWithPivot->roles->first()?->name ?? $memberWithPivot->pivot->role;
+
+        // Get full role details with permissions
+        $role = Role::where('name', $roleName)
+            ->with('permissions')
+            ->first();
+
+        // Map the team member data for the view
+        $memberData = [
+            'id' => $memberWithPivot->id,
+            'name' => $memberWithPivot->name,
+            'email' => $memberWithPivot->email,
+            'role' => [
+                'name' => $memberWithPivot->pivot->role,
+                'description' => $this->getRoleDescription($memberWithPivot->pivot->role),
+                'permissions' => $role ? $role->permissions->pluck('name') : [],
+            ],
+            'is_owner' => (bool) $memberWithPivot->pivot->is_owner,
+            'avatar' => $memberWithPivot->profile_photo_url,
+            'joined_at' => $memberWithPivot->pivot->created_at->format('M d, Y'),
+            'can' => [
+                'edit' => $request->user()->can('update', [CompanyTeamPolicy::class, $company, $memberWithPivot]),
+                'delete' => $request->user()->can('delete', [CompanyTeamPolicy::class, $company, $memberWithPivot]),
+            ],
+        ];
+
+        return Inertia::render('team/Show', [
+            'member' => $memberData,
+            'company' => [
+                'id' => $company->id,
+                'name' => $company->name,
+            ],
         ]);
     }
 

@@ -27,6 +27,17 @@ Route::middleware(['auth', 'verified', 'ensure.company.access'])->group(function
         App\Http\Controllers\CompanyController::class
     )->only(['index', 'create', 'store']);
 
+    // Company deletion (single and bulk) for owners
+    Route::delete(
+        '/companies/{company}',
+        [App\Http\Controllers\CompanyController::class, 'destroy']
+    )->name('companies.destroy');
+
+    Route::delete(
+        '/companies/bulk-destroy',
+        [App\Http\Controllers\CompanyController::class, 'bulkDestroy']
+    )->name('companies.bulk-destroy');
+
     Route::post(
         '/companies/{company}/switch',
         App\Http\Controllers\Company\SwitchCompanyController::class
@@ -141,7 +152,7 @@ Route::middleware(['auth', 'verified', 'ensure.company.access'])->group(function
     Route::resource(
         'team',
         App\Http\Controllers\TeamController::class
-    )->except(['show']);
+    );
 
     Route::post(
         '/team/invite',

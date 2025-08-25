@@ -14,15 +14,34 @@ use App\Http\Controllers\Auth\InvitedRegisterController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
+    // Multi-step registration routes
     Route::get('register', [RegisteredUserController::class, 'create'])
         ->name('register');
 
-    Route::post('register', [RegisteredUserController::class, 'store']);
+    Route::post(
+      'register/step1',
+      [RegisteredUserController::class, 'validateStep1']
+    )->name('register.validate.step1');
 
-    // Registration step validation routes (invokable controllers)
-    Route::post('register/validate-step-1', \App\Http\Controllers\Auth\ValidateRegistrationStep1Controller::class);
-    Route::post('register/validate-step-2', \App\Http\Controllers\Auth\ValidateRegistrationStep2Controller::class);
-    Route::post('register/validate-step-3', \App\Http\Controllers\Auth\ValidateRegistrationStep3Controller::class);
+    Route::get(
+      'register/company-information',
+      [RegisteredUserController::class, 'showStep2']
+    )->name('register.step2');
+
+    Route::post(
+      'register/company-information',
+      [RegisteredUserController::class, 'validateStep2']
+    )->name('register.validate.step2');
+
+    Route::get(
+      'register/subscription-plan',
+      [RegisteredUserController::class, 'createPlan']
+    )->name('register.step3');
+
+    Route::post(
+      'register',
+      [RegisteredUserController::class, 'store']
+    )->name('register.store');
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');

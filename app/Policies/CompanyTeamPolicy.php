@@ -4,73 +4,80 @@ namespace App\Policies;
 
 use App\Models\Company;
 use App\Models\User;
-use Illuminate\Auth\Access\HandlesAuthorization;
+use App\Services\Billing\PlanGate;
 
 class CompanyTeamPolicy
 {
-    use HandlesAuthorization;
-
-    /**
-     * Determine if the user can invite team members to the company
-     */
-    public function inviteTeamMember(User $user, Company $company): bool
+    public function viewAny(User $user, Company $company): bool
     {
-        return $user->can('team.invite') && $user->canAccessCompany($company);
+        return $user->canAccessCompany($company);
     }
 
-    /**
-     * Determine if the user can update team member roles
-     */
-    public function updateTeamMember(User $user, Company $company): bool
+    public function view(User $user, Company $company, User $member): bool
     {
-        return $user->can('team.update_roles') && $user->canAccessCompany($company);
+        return $user->canAccessCompany($company);
     }
 
-    /**
-     * Determine if the user can update team member permissions
-     */
-    public function updateTeamPermissions(User $user, Company $company): bool
+    public function update(User $user, Company $company, User $member): bool
     {
-        return $user->can('team.update_permissions') && $user->canAccessCompany($company);
+        if (!$user->canAccessCompany($company)) {
+            return false;
+        }
+
+        // Owner and manager can update non-owner team members
+        if (!$member->pivot->is_owner) {
+            return $user->isOwnerOf($company) ||
+                   in_array($user->getRoleInCompany($company), ['company_owner', 'manager']);
+        }
+
+        // Only owner can update other owners
+        return $user->isOwnerOf($company);
     }
 
-    /**
-     * Determine if the user can remove team members
-     */
-    public function removeTeamMember(User $user, Company $company): bool
+    public function delete(User $user, Company $company, User $member): bool
     {
-        return $user->can('team.remove') && $user->canAccessCompany($company);
+        if (!$user->canAccessCompany($company)) {
+            return false;
+        }
+
+        // Can't delete yourself
+        if ($user->id === $member->id) {
+            return false;
+        }
+
+        // Can't delete owners
+        if ($member->pivot->is_owner) {
+            return false;
+        }
+
+        // Owner and manager can delete team members
+        return $user->isOwnerOf($company) ||
+               in_array($user->getRoleInCompany($company), ['company_owner', 'manager']);
     }
 
-    /**
-     * Determine if the user can view team members
-     */
-    public function viewTeamMembers(User $user, Company $company): bool
+    public function invite(User $user, Company $company): bool
     {
-        return $user->can('team.view_any') && $user->canAccessCompany($company);
+        // First check if user has access to the company and role permission
+        if (!$user->canAccessCompany($company)) {
+            return false;
+        }
+
+        $hasRolePermission = $user->isOwnerOf($company) ||
+                            in_array($user->getRoleInCompany($company), ['company_owner', 'manager']);
+
+        if (!$hasRolePermission) {
+            return false;
+        }
+
+        // Then check subscription plan allows team invitations
+        $planId = $company->subscription_plan ?? 'free';
+        return PlanGate::allows($planId, 'team.invitations', false);
     }
 
-    /**
-     * Determine if the user can view specific team member details
-     */
-    public function viewTeamMember(User $user, Company $company): bool
-    {
-        return $user->can('team.view') && $user->canAccessCompany($company);
-    }
-
-    /**
-     * Determine if the user can manage team invitations
-     */
     public function manageInvitations(User $user, Company $company): bool
     {
-        return $user->can('team.manage_invitations') && $user->canAccessCompany($company);
-    }
-
-    /**
-     * Determine if the user can view team activity
-     */
-    public function viewTeamActivity(User $user, Company $company): bool
-    {
-        return $user->can('team.view_activity') && $user->canAccessCompany($company);
+        return $user->canAccessCompany($company) &&
+               ($user->isOwnerOf($company) ||
+                in_array($user->getRoleInCompany($company), ['company_owner', 'manager']));
     }
 }

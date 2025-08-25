@@ -7,6 +7,11 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
+        if (Schema::hasTable('billing_plans')) {
+            // Table already exists (created by an earlier migration); skip.
+            return;
+        }
+
         Schema::create('billing_plans', function (Blueprint $table) {
             $table->id();
             $table->string('key')->unique(); // e.g., free, pro, business

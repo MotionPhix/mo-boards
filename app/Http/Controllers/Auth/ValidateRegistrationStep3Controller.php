@@ -4,41 +4,51 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Auth;
 
-use Exception;
-use Illuminate\Http\JsonResponse;
+use App\Http\Controllers\Controller;
+use App\Services\PlanService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Session;
+use Illuminate\Validation\ValidationException;
 
-final class ValidateRegistrationStep3Controller
+final class ValidateRegistrationStep3Controller extends Controller
 {
-    public function __invoke(Request $request): JsonResponse
+    public function __construct(
+        private readonly PlanService $planService
+    ) {}
+
+    public function __invoke(Request $request)
     {
+        // Check if previous steps were completed
+        if (!Session::has('registration_step1') || !Session::has('registration_step2') ||
+            Session::get('registration_progress') < 2) {
+            return redirect()->route('register.company')->with('error', 'Please complete previous steps first');
+        }
+
         try {
-            $request->validate([
-                'subscription_plan' => 'required|string|in:free,pro,business',
+            $validated = $request->validate([
+                'subscription_plan' => [
+                    'required',
+                    'string',
+                    'in:free,pro,business'
+                ],
             ]);
 
-            return response()->json([
-                'valid' => true,
-                'message' => 'Step 3 validation successful',
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'valid' => false,
-                'errors' => $e->errors(),
-                'message' => 'Validation failed for step 3',
-            ], 422);
-        } catch (Exception $e) {
-            Log::error('Step 3 validation error', [
-                'error' => $e->getMessage(),
-                'subscription_plan' => $request->subscription_plan ?? 'unknown',
-            ]);
+            // Verify the selected plan exists in our database
+            $plans = $this->planService->getPlans();
+            if (!isset($plans[$validated['subscription_plan']])) {
+                return back()->withErrors([
+                    'subscription_plan' => 'Selected plan is not available'
+                ]);
+            }
 
-            return response()->json([
-                'valid' => false,
-                'errors' => ['general' => ['An unexpected error occurred during validation']],
-                'message' => 'Server error',
-            ], 500);
+            // Store validated data and complete registration progress
+            Session::put('registration_step3', $validated);
+            Session::put('registration_progress', 3);
+
+            // Process the final registration
+            return redirect()->route('register')->with($validated);
+        } catch (ValidationException $e) {
+            return back()->withErrors($e->errors());
         }
     }
 }

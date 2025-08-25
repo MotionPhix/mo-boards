@@ -7,6 +7,7 @@ namespace App\Http\Middleware;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Tighten\Ziggy\Ziggy;
+use App\Services\Billing\PlanGate;
 
 final class HandleInertiaRequests extends Middleware
 {
@@ -72,7 +73,44 @@ final class HandleInertiaRequests extends Middleware
                     'abilities' => $request->user() ? $this->getUserAbilities($request->user()) : [],
                 ] : null,
             ],
-            
+
+            // Subscription and plan-derived UI flags
+            'subscription' => (function () use ($request) {
+                $user = $request->user();
+                $company = $user?->currentCompany;
+                if (! $company) {
+                    return null;
+                }
+
+                $planId = (string) ($company->subscription_plan ?? 'free');
+                $teamLimit = PlanGate::limit($planId, 'team.members.max');
+                $teamCount = $company->users()->count();
+                $canInviteTeam = PlanGate::allows($planId, 'team.invitations', false);
+                $canInviteMore = $canInviteTeam && ($teamLimit === null || $teamCount < (int) $teamLimit);
+
+                return [
+                    'plan' => $planId,
+                    'team' => [
+                        'current' => $teamCount,
+                        'limit' => $teamLimit,
+                        'can_invite_more' => $canInviteMore,
+                    ],
+                    'companies' => [
+                        'current' => $user->companies()->wherePivot('is_owner', true)->count(),
+                        // Format limit as string to match frontend/test expectations ('3' or 'unlimited')
+                        'limit' => ($limit = PlanGate::limit($planId, 'companies.max')) === null ? 'unlimited' : (string) $limit,
+                        'can_create_more' => $this->canCreateMoreCompanies($user, $planId),
+                    ],
+                    // Convenience booleans for UI checks
+                    'can_invite_team' => $canInviteTeam,
+                    'features' => [
+                        'team_invitations' => $canInviteTeam,
+                        'export_enabled' => PlanGate::allows($planId, 'export.enabled', false),
+                        'company_creation' => PlanGate::allows($planId, 'companies.max', true),
+                    ],
+                ];
+            })(),
+
             'theme' => [
                 'current' => $request->cookie('theme', 'system'),
                 'user_preference' => $request->user()?->theme_preference ?? null,
@@ -199,5 +237,24 @@ final class HandleInertiaRequests extends Middleware
             'is_editor' => $user->hasRole('editor'),
             'is_viewer' => $user->hasRole('viewer'),
         ];
+    }
+
+    /**
+     * Check if user can create more companies
+     */
+    private function canCreateMoreCompanies($user, string $planId): bool
+    {
+        $currentCompanyCount = $user->companies()->wherePivot('is_owner', true)->count();
+        $companyLimit = PlanGate::limit($planId, 'companies.max');
+
+        if ($companyLimit === '0' || $companyLimit === 0) {
+            return false;
+        }
+
+        if ($companyLimit === 'unlimited') {
+            return true;
+        }
+
+        return $currentCompanyCount < (int) $companyLimit;
     }
 }

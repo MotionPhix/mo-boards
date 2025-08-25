@@ -6,8 +6,12 @@ namespace App\Http\Controllers\Auth;
 
 use App\Enums\SubscriptionPlan;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\RegisterStep1Request;
+use App\Http\Requests\Auth\RegisterStep2Request;
+use App\Http\Responses\ValidationErrorResponse;
 use App\Models\Company;
 use App\Models\User;
+use App\Services\PlanService;
 use Exception;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Database\QueryException;
@@ -17,22 +21,105 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules;
 use Inertia\Inertia;
 use Inertia\Response;
-
-use function count;
+use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
+use Propaganistas\LaravelPhone\Rules\Phone;
 
 final class RegisteredUserController extends Controller
 {
+    public function __construct(
+        private readonly PlanService $planService,
+        private readonly ValidationErrorResponse $validationResponse
+    ) {}
+
     /**
-     * Show the registration page.
+     * Show step 1 of registration (basic info).
      */
-    public function create(): Response
+    public function create(Request $request): Response
     {
-        return Inertia::render('auth/Register');
+        $data = $request->only([
+            'name', 'email', 'phone', 'password', 'password_confirmation',
+            'company_name', 'industry', 'company_size', 'address', 'subscription_plan'
+        ]);
+
+        return Inertia::render('auth/Register', [
+            'step' => 1,
+            'data' => $data
+        ]);
+    }
+
+    /**
+     * Validate step 1 of registration.
+     */
+    public function validateStep1(RegisterStep1Request $request): RedirectResponse
+    {
+        $validated = $request->validated();
+        Session::put('registration.step1', $validated);
+
+        return redirect()->route('register.step2');
+    }
+
+    /**
+     * Show step 2 of registration (company info).
+     */
+    public function showStep2(): Response|RedirectResponse
+    {
+        if (!Session::has('registration.step1')) {
+            return to_route('register');
+        }
+
+        return Inertia::render('auth/Register', [
+            'step' => 2,
+            'data' => Session::get('registration.step2', [])
+        ]);
+    }
+
+    /**
+     * Validate step 2 of registration.
+     */
+    public function validateStep2(RegisterStep2Request $request): RedirectResponse
+    {
+        $validated = $request->safe()->except(['logo']);
+
+        // Store validated data in session
+        Session::put('registration.step2', $validated);
+
+        // Handle logo upload separately
+        if ($request->hasFile('logo')) {
+            // Store the file temporarily and save the path in session
+            $path = $request->file('logo')->store('temp/logos', 'local');
+            Session::put('registration.step2.temp_logo', $path);
+        }
+
+        return to_route('register.step3');
+    }
+
+    /**
+     * Show step 3 of registration (plan selection).
+     */
+    public function createPlan(Request $request): Response|RedirectResponse
+    {
+        if (!Session::has('registration.step2')) {
+            return to_route('register.step2');
+        }
+
+        $data = $request->only([
+            'name', 'email', 'phone', 'password', 'password_confirmation',
+            'company_name', 'industry', 'company_size', 'address', 'subscription_plan'
+        ]);
+
+        return Inertia::render('auth/Register', [
+            'step' => 3,
+            'data' => $data,
+            'plans' => $this->planService->getPlans()
+        ]);
     }
 
     /**
@@ -42,137 +129,123 @@ final class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $baseRules = [
-            'name' => 'required|string|max:255',
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)],
-            'phone' => 'nullable|string|max:20',
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
-        ];
-
-        $companyRules = [
-            'company_name' => 'required|string|max:255',
-            'industry' => 'nullable|string|in:outdoor-advertising,marketing-agency,real-estate,retail,other',
-            'company_size' => 'nullable|string|in:1-10,11-50,51-200,200+',
-            'address' => 'nullable|string|max:1000',
-            'subscription_plan' => ['required', 'string', Rule::in(SubscriptionPlan::values())],
-        ];
-
-        // Support two paths: simple user registration and company-inclusive registration
-        $providedKeys = array_keys($request->all());
-        $hasAnyBase = count(array_intersect($providedKeys, array_keys($baseRules))) > 0;
-        $hasAnyCompany = count(array_intersect($providedKeys, array_keys($companyRules))) > 0;
-        $emptyPayload = (! $hasAnyBase && ! $hasAnyCompany);
-        $passwordMissing = ! $request->filled('password');
-        // If payload is empty or password missing, validate full registration (include company fields)
-        $isCompanyRegistration = $hasAnyCompany || $emptyPayload || $passwordMissing;
-
-        $rules = $isCompanyRegistration ? ($baseRules + $companyRules) : $baseRules;
-        $validated = $request->validate($rules);
-
         try {
             DB::beginTransaction();
 
-            // Create user
-            $user = User::create([
-                'name' => $validated['name'],
-                'email' => $validated['email'],
-                'phone' => $validated['phone'] ?? null,
-                'password' => Hash::make($validated['password']),
+            // Ensure all steps are completed
+            if (!Session::has('registration.step1') || !Session::has('registration.step2')) {
+                Log::warning('Registration attempt without completing all steps');
+                return redirect()->route('register')->withErrors([
+                    'general' => 'Please complete all registration steps.',
+                ]);
+            }
+
+            // Merge all registration data
+            $registrationData = array_merge(
+                Session::get('registration.step1', []),
+                Session::get('registration.step2', []),
+                [
+                    'subscription_plan' => $request->input('subscription_plan'),
+                    'password_confirmation' => $request->input('password_confirmation'),
+                ]
+            );
+
+            Log::debug('Registration data:', array_merge(
+                $registrationData,
+                ['password' => '******', 'password_confirmation' => '******']
+            ));
+
+            // Revalidate all data as a final check
+            $validator = Validator::make($registrationData, [
+                'name' => 'required|string|max:255',
+                'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)],
+                'phone' => ['required', new Phone],
+                'password' => ['required', 'confirmed', Rules\Password::defaults()],
+                'company_name' => 'required|string|max:255',
+                'industry' => 'nullable|string|in:outdoor-advertising,marketing-agency,real-estate,retail,other',
+                'company_size' => 'nullable|string|in:1-10,11-50,51-200,200+',
+                'address' => 'nullable|string|max:1000',
+                'subscription_plan' => ['required', 'string', Rule::in(SubscriptionPlan::values())],
             ]);
 
-            Log::info('User created during registration', ['user_id' => $user->id, 'email' => $user->email]);
+            if ($validator->fails()) {
+                DB::rollBack();
+                Log::warning('Registration validation failed', ['errors' => $validator->errors()->toArray()]);
+                return back()->withErrors($validator)->withInput();
+            }
 
-            if ($isCompanyRegistration) {
+            $validated = $validator->validated();
+
+            try {
+                // Create user
+                $user = User::create([
+                    'name' => $validated['name'],
+                    'email' => $validated['email'],
+                    'phone' => $validated['phone'],
+                    'password' => Hash::make($validated['password']),
+                ]);
+
+                Log::info('User created during registration', ['user_id' => $user->id, 'email' => $user->email]);
+
                 // Generate unique slug from company name
-                // Create company with unique slug based on name
                 $slug = Str::slug($validated['company_name']);
                 if (Company::where('slug', $slug)->exists()) {
-                    // Avoid insecure hashes; use a short random, lowercase-safe suffix
                     $slug = $slug.'-'.mb_strtolower(Str::random(6));
                 }
 
-                // Create company with resilient plan handling (SQLite enum constraints)
-                try {
-                    $company = Company::create([
-                        'name' => $validated['company_name'],
-                        'slug' => $slug,
-                        'industry' => $validated['industry'] ?? null,
-                        'size' => $validated['company_size'] ?? null,
-                        'address' => $validated['address'] ?? null,
-                        // Ensure scalar string is assigned; model casts to enum on read
-                        'subscription_plan' => (string) $validated['subscription_plan'],
-                        'subscription_expires_at' => now()->addMonth(), // 1 month trial
-                        'is_active' => true,
-                    ]);
-                } catch (QueryException $qe) {
-                    $msg = mb_strtolower($qe->getMessage());
-                    $looksLikeEnumConstraint = str_contains($msg, 'constraint') || str_contains($msg, 'check constraint') || str_contains($msg, 'truncated');
-                    if (! $looksLikeEnumConstraint) {
-                        throw $qe;
-                    }
-
-                    // Map to legacy keys for environments where enum alteration isn't applied (e.g., sqlite tests)
-                    $map = [
-                        'free' => 'starter',
-                        'pro' => 'professional',
-                        'business' => 'enterprise',
-                    ];
-                    $fallbackPlan = $map[$validated['subscription_plan']] ?? $validated['subscription_plan'];
-
-                    $company = Company::create([
-                        'name' => $validated['company_name'],
-                        'slug' => $slug,
-                        'industry' => $validated['industry'] ?? null,
-                        'size' => $validated['company_size'] ?? null,
-                        'address' => $validated['address'] ?? null,
-                        'subscription_plan' => $fallbackPlan,
-                        'subscription_expires_at' => now()->addMonth(),
-                        'is_active' => true,
-                    ]);
-                }
-
-                Log::info('Company created during registration', ['company_id' => $company->id, 'name' => $company->name]);
-
-                // Attach user to company as owner
-                $user->companies()->attach($company->id, [
-                    'is_owner' => true,
-                    'joined_at' => now(),
-                    'role' => 'company_owner',
+                // Create company
+                $company = Company::create([
+                    'name' => $validated['company_name'],
+                    'slug' => $slug,
+                    'industry' => $validated['industry'] ?? null,
+                    'size' => $validated['company_size'] ?? null,
+                    'address' => $validated['address'] ?? null,
+                    'subscription_plan' => $validated['subscription_plan'],
+                    'subscription_expires_at' => now()->addMonth(), // 1 month trial
+                    'is_active' => true,
                 ]);
 
-                // Set current company for user
+                // Handle logo upload if exists in session
+                if (Session::has('registration.step2.temp_logo')) {
+                    $tempLogoPath = Session::get('registration.step2.temp_logo');
+                    if (Storage::disk('local')->exists($tempLogoPath)) {
+                        $company->addMediaFromDisk($tempLogoPath, 'local')
+                            ->toMediaCollection('company_logo');
+                        Storage::disk('local')->delete($tempLogoPath);
+                    }
+                }
+
+                // Associate user with company and set as current company
+                $user->companies()->attach($company->id, ['role' => 'owner']);
                 $user->update(['current_company_id' => $company->id]);
 
-                // Assign role using Spatie Permission (check if role exists first)
-                if (\Spatie\Permission\Models\Role::where('name', 'company_owner')->exists()) {
-                    $user->assignRole('company_owner');
-                } else {
-                    Log::warning('Role company_owner does not exist, skipping role assignment');
-                }
+                event(new Registered($user));
+                Auth::login($user);
+
+                DB::commit();
+
+                // Clear registration session data
+                Session::forget(['registration.step1', 'registration.step2']);
+
+                return redirect()->route('dashboard');
+
+            } catch (QueryException $qe) {
+                DB::rollBack();
+                Log::error('Failed to create company during registration', [
+                    'error' => $qe->getMessage(),
+                    'user_id' => $user->id ?? null,
+                    'trace' => $qe->getTraceAsString(),
+                ]);
+                throw $qe;
             }
 
-            event(new Registered($user));
-
-            Auth::login($user);
-
-            DB::commit();
-
-            Log::info('User registration completed successfully', ['user_id' => $user->id]);
-
-            return to_route('dashboard')->with('success', 'Registration successful! Welcome to your billboard management dashboard.');
-
         } catch (Exception $e) {
-            DB::rollback();
-
+            DB::rollBack();
             Log::error('Registration failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'email' => $request->email ?? 'unknown',
             ]);
-
-            return back()->withErrors([
-                'general' => 'An error occurred during registration. Please try again.',
-            ])->withInput();
+            return back()->withErrors(['general' => 'Registration failed. Please try again.']);
         }
     }
 }

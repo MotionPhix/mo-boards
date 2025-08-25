@@ -98,7 +98,7 @@ final class Company extends Model implements HasMedia
      */
     public function getLogoUrlAttribute(): ?string
     {
-        return $this->getFirstMediaUrl('logo');
+        return $this->getFirstMediaUrl('company_logo');
     }
 
     /**
@@ -106,7 +106,7 @@ final class Company extends Model implements HasMedia
      */
     public function hasLogo(): bool
     {
-        return $this->hasMedia('logo');
+        return $this->hasMedia('company_logo');
     }
 
     /**
@@ -114,7 +114,7 @@ final class Company extends Model implements HasMedia
      */
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('logo')
+        $this->addMediaCollection('company_logo')
             ->singleFile()
             ->acceptsMimeTypes(['image/jpeg', 'image/png', 'image/gif', 'image/svg+xml']);
     }

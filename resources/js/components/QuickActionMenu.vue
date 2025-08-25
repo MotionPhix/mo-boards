@@ -1,3 +1,84 @@
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { router, usePage } from '@inertiajs/vue3'
+import { Plus } from 'lucide-vue-next'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import QuickActionItem from '@/components/QuickActionItem.vue'
+
+const isOpen = ref(false)
+const page = usePage()
+
+// Get user abilities from the middleware-provided auth data
+const permissions = computed(() => {
+  const user = page.props.auth?.user
+  const abilities = user?.abilities || {}
+
+  return {
+    can_create_billboards: abilities.can_create_billboards || false,
+    can_create_contracts: abilities.can_create_contracts || false,
+    can_create_templates: abilities.can_create_contracts || false, // Templates use same permission as contracts
+    can_invite_team: abilities.can_invite_team_members || false,
+    can_create_companies: abilities.can_create_companies || false,
+    can_manage_settings: abilities.can_manage_company_settings || false,
+  }
+})
+
+const toggleMenu = () => {
+  isOpen.value = !isOpen.value
+}
+
+const closeMenu = () => {
+  isOpen.value = false
+}
+
+// Quick Action Functions
+const createBillboard = () => {
+  closeMenu()
+  router.visit(route('billboards.create'))
+}
+
+const createContract = () => {
+  closeMenu()
+  router.visit(route('contracts.create'))
+}
+
+const createTemplate = () => {
+  closeMenu()
+  router.visit(route('contract-templates.create'))
+}
+
+const inviteTeamMember = () => {
+  closeMenu()
+  router.visit(route('team.invite-modal'))
+}
+
+const createCompany = () => {
+  closeMenu()
+  router.visit(route('companies.create'))
+}
+
+const openSettings = () => {
+  closeMenu()
+  router.visit(route('companies.settings'))
+}
+
+// Close menu on escape key
+const handleEscape = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    closeMenu()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleEscape)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleEscape)
+})
+</script>
+
 <template>
   <div class="fixed bottom-6 right-6 z-50">
     <!-- Quick Action Button -->
@@ -103,84 +184,3 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { router, usePage } from '@inertiajs/vue3'
-import { Plus } from 'lucide-vue-next'
-import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
-import QuickActionItem from '@/components/QuickActionItem.vue'
-
-const isOpen = ref(false)
-const page = usePage()
-
-// Get user abilities from the middleware-provided auth data
-const permissions = computed(() => {
-  const user = page.props.auth?.user
-  const abilities = user?.abilities || {}
-
-  return {
-    can_create_billboards: abilities.can_create_billboards || false,
-    can_create_contracts: abilities.can_create_contracts || false,
-    can_create_templates: abilities.can_create_contracts || false, // Templates use same permission as contracts
-    can_invite_team: abilities.can_invite_team_members || false,
-    can_create_companies: abilities.can_create_companies || false,
-    can_manage_settings: abilities.can_manage_company_settings || false,
-  }
-})
-
-const toggleMenu = () => {
-  isOpen.value = !isOpen.value
-}
-
-const closeMenu = () => {
-  isOpen.value = false
-}
-
-// Quick Action Functions
-const createBillboard = () => {
-  closeMenu()
-  router.visit(route('billboards.create'))
-}
-
-const createContract = () => {
-  closeMenu()
-  router.visit(route('contracts.create'))
-}
-
-const createTemplate = () => {
-  closeMenu()
-  router.visit(route('contract-templates.create'))
-}
-
-const inviteTeamMember = () => {
-  closeMenu()
-  router.visit(route('team.create'))
-}
-
-const createCompany = () => {
-  closeMenu()
-  router.visit(route('companies.create'))
-}
-
-const openSettings = () => {
-  closeMenu()
-  router.visit(route('companies.settings'))
-}
-
-// Close menu on escape key
-const handleEscape = (event: KeyboardEvent) => {
-  if (event.key === 'Escape') {
-    closeMenu()
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('keydown', handleEscape)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleEscape)
-})
-</script>

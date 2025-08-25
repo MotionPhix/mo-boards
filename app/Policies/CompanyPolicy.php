@@ -21,7 +21,26 @@ class CompanyPolicy
 
     public function create(User $user): bool
     {
-        // Allow all authenticated users to create companies
+        // Determine user's primary company (where they're an owner) to infer plan
+        $primaryCompany = $user->companies()->wherePivot('is_owner', true)->first();
+        $planId = $primaryCompany?->subscription_plan ?? 'free';
+
+        // Get current company count where the user is owner
+        $currentCompanyCount = $user->companies()->wherePivot('is_owner', true)->count();
+
+        // Get plan limit for companies
+        $companyLimit = PlanGate::limit($planId, 'companies.max');
+
+        // If plan explicitly disallows companies (limit == 0)
+        if ($companyLimit === '0' || $companyLimit === 0) {
+            return false;
+        }
+
+        // If plan has a numeric limit and user has reached it
+        if ($companyLimit !== 'unlimited' && $companyLimit !== null && $currentCompanyCount >= (int) $companyLimit) {
+            return false;
+        }
+
         return true;
     }
 
@@ -64,68 +83,5 @@ class CompanyPolicy
                 $user->getRoleInCompany($company) === 'company_owner');
     }
 
-    // Team management abilities within the company context
-    public function inviteTeamMember(User $user, Company $company): bool
-    {
-        // First check if user has access to the company and role permission
-        if (!$user->canAccessCompany($company)) {
-            return false;
-        }
-
-        $hasRolePermission = $user->isOwnerOf($company) ||
-                            in_array($user->getRoleInCompany($company), ['company_owner', 'manager']);
-
-        if (!$hasRolePermission) {
-            return false;
-        }
-
-        // Then check subscription plan allows team invitations
-        $planId = $company->subscription_plan ?? 'free';
-        return PlanGate::allows($planId, 'team.invitations', false);
-    }
-
-    public function updateTeamMember(User $user, Company $company): bool
-    {
-        return $user->canAccessCompany($company) &&
-               ($user->isOwnerOf($company) ||
-                in_array($user->getRoleInCompany($company), ['company_owner', 'manager']));
-    }
-
-    public function updateTeamPermissions(User $user, Company $company): bool
-    {
-        return $user->canAccessCompany($company) &&
-               ($user->isOwnerOf($company) ||
-                $user->getRoleInCompany($company) === 'company_owner');
-    }
-
-    public function removeTeamMember(User $user, Company $company): bool
-    {
-        return $user->canAccessCompany($company) &&
-               ($user->isOwnerOf($company) ||
-                in_array($user->getRoleInCompany($company), ['company_owner', 'manager']));
-    }
-
-    public function viewTeamMembers(User $user, Company $company): bool
-    {
-        return $user->canAccessCompany($company);
-    }
-
-    public function viewTeamMember(User $user, Company $company): bool
-    {
-        return $user->canAccessCompany($company);
-    }
-
-    public function manageInvitations(User $user, Company $company): bool
-    {
-        return $user->canAccessCompany($company) &&
-               ($user->isOwnerOf($company) ||
-                in_array($user->getRoleInCompany($company), ['company_owner', 'manager']));
-    }
-
-    public function viewTeamActivity(User $user, Company $company): bool
-    {
-        return $user->canAccessCompany($company) &&
-               ($user->isOwnerOf($company) ||
-                in_array($user->getRoleInCompany($company), ['company_owner', 'manager']));
-    }
+    // Team activity permissions moved to CompanyTeamPolicy
 }
