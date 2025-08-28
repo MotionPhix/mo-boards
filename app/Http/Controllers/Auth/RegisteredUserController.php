@@ -61,6 +61,8 @@ final class RegisteredUserController extends Controller
     public function validateStep1(RegisterStep1Request $request): RedirectResponse
     {
         $validated = $request->validated();
+        // Preserve password_confirmation in session for the final 'confirmed' validation
+        $validated['password_confirmation'] = $request->input('password_confirmation');
         Session::put('registration.step1', $validated);
 
         return redirect()->route('register.step2');
@@ -141,14 +143,29 @@ final class RegisteredUserController extends Controller
             }
 
             // Merge all registration data
+            $mergeExtras = [
+                'subscription_plan' => $request->input('subscription_plan'),
+            ];
+
+            // Only override password_confirmation if provided in this request.
+            // Otherwise keep the value from step 1 so the 'confirmed' rule passes.
+            if ($request->filled('password_confirmation')) {
+                $mergeExtras['password_confirmation'] = $request->input('password_confirmation');
+            }
+
             $registrationData = array_merge(
                 Session::get('registration.step1', []),
                 Session::get('registration.step2', []),
-                [
-                    'subscription_plan' => $request->input('subscription_plan'),
-                    'password_confirmation' => $request->input('password_confirmation'),
-                ]
+                $mergeExtras
             );
+
+            // Defensive: ensure password_confirmation is present for the 'confirmed' rule
+            if (!array_key_exists('password_confirmation', $registrationData) || $registrationData['password_confirmation'] === null || $registrationData['password_confirmation'] === '') {
+                $pc = data_get(Session::get('registration.step1', []), 'password_confirmation');
+                if ($pc !== null && $pc !== '') {
+                    $registrationData['password_confirmation'] = $pc;
+                }
+            }
 
             Log::debug('Registration data:', array_merge(
                 $registrationData,
@@ -160,7 +177,8 @@ final class RegisteredUserController extends Controller
                 'name' => 'required|string|max:255',
                 'email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique(User::class)],
                 'phone' => ['required', new Phone],
-                'password' => ['required', 'confirmed', Rules\Password::defaults()],
+                'password' => ['required', Rules\Password::defaults()],
+                'password_confirmation' => ['sometimes', 'same:password'],
                 'company_name' => 'required|string|max:255',
                 'industry' => 'nullable|string|in:outdoor-advertising,marketing-agency,real-estate,retail,other',
                 'company_size' => 'nullable|string|in:1-10,11-50,51-200,200+',
@@ -194,6 +212,9 @@ final class RegisteredUserController extends Controller
                 }
 
                 // Create company
+                $trialDays = (int) config('billing.trial_days', 7);
+                $trialEndsAt = now()->addDays($trialDays);
+
                 $company = Company::create([
                     'name' => $validated['company_name'],
                     'slug' => $slug,
@@ -201,7 +222,7 @@ final class RegisteredUserController extends Controller
                     'size' => $validated['company_size'] ?? null,
                     'address' => $validated['address'] ?? null,
                     'subscription_plan' => $validated['subscription_plan'],
-                    'subscription_expires_at' => now()->addMonth(), // 1 month trial
+                    'subscription_expires_at' => $validated['subscription_plan'] === 'free' ? null : $trialEndsAt,
                     'is_active' => true,
                 ]);
 
@@ -217,6 +238,7 @@ final class RegisteredUserController extends Controller
 
                 // Associate user with company and set as current company
                 $user->companies()->attach($company->id, ['role' => 'owner']);
+                $user->assignRole('company_owner');
                 $user->update(['current_company_id' => $company->id]);
 
                 event(new Registered($user));

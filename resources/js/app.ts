@@ -11,6 +11,9 @@ import VueApexCharts from 'vue3-apexcharts';
 import { Modal, ModalLink, renderApp, putConfig } from '@inertiaui/modal-vue';
 import FlashToasts from './plugins/flashToasts';
 
+// Broadcasting is configured via @laravel/echo-vue per Laravel 12 docs
+import { configureEcho } from '@laravel/echo-vue';
+
 // Configure default modal settings
 putConfig({
     type: 'modal',
@@ -37,6 +40,19 @@ putConfig({
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
+// Setup Echo using Vite env and broadcasting driver
+configureEcho({
+  broadcaster: (import.meta as any).env.VITE_BROADCAST_CONNECTION || 'pusher',
+  // For pusher, you can optionally specify values; otherwise defaults read from Vite env
+  key: (import.meta as any).env.VITE_PUSHER_APP_KEY,
+  cluster: (import.meta as any).env.VITE_PUSHER_APP_CLUSTER,
+  wsHost: (import.meta as any).env.VITE_PUSHER_HOST,
+  wsPort: (import.meta as any).env.VITE_PUSHER_PORT,
+  wssPort: (import.meta as any).env.VITE_PUSHER_PORT,
+  forceTLS: ((import.meta as any).env.VITE_PUSHER_SCHEME ?? 'https') === 'https',
+  enabledTransports: ['ws', 'wss'],
+});
+
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,
     resolve: (name) => resolvePageComponent(`./pages/${name}.vue`, import.meta.glob<DefineComponent>('./pages/**/*.vue')),
@@ -49,6 +65,8 @@ createInertiaApp({
             .component('ModalUi', Modal)
             .component('ModalLink', ModalLink)
             .mount(el);
+
+        // Echo is configured globally via configureEcho. Components should use useEcho hooks.
     },
     progress: {
         color: '#4B5563',

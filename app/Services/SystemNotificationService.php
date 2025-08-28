@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\SystemNotificationCreated;
 use App\Models\Company;
 use App\Models\SystemNotification;
 use App\Models\User;
@@ -21,7 +22,7 @@ class SystemNotificationService
         array $data = [],
         ?Carbon $expiresAt = null
     ): SystemNotification {
-        return SystemNotification::create([
+        $notification = SystemNotification::create([
             'type' => $type,
             'level' => $level,
             'title' => $title,
@@ -30,6 +31,10 @@ class SystemNotificationService
             'company_id' => $company->id,
             'expires_at' => $expiresAt,
         ]);
+
+        event(new SystemNotificationCreated($notification));
+
+        return $notification;
     }
 
     /**
@@ -44,7 +49,7 @@ class SystemNotificationService
         array $data = [],
         ?Carbon $expiresAt = null
     ): SystemNotification {
-        return SystemNotification::create([
+        $notification = SystemNotification::create([
             'type' => $type,
             'level' => $level,
             'title' => $title,
@@ -53,6 +58,10 @@ class SystemNotificationService
             'user_id' => $user->id,
             'expires_at' => $expiresAt,
         ]);
+
+        event(new SystemNotificationCreated($notification));
+
+        return $notification;
     }
 
     /**

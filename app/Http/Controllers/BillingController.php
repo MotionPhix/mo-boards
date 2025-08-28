@@ -4,67 +4,77 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Models\CompanyTransaction;
+use App\Models\Company;
+use App\Models\CompanySubscription;
+use App\Services\PayChanguService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Response;
-use Inertia\Inertia;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\URL;
 
 final class BillingController extends Controller
 {
-    // List transactions (keep RESTful by moving to invokable controller if needed by arch)
-    public function index(Request $request)
+    public function __construct(private readonly PayChanguService $paychangu)
     {
-        $company = Auth::user()->currentCompany;
-        $this->authorize('viewBilling', $company);
-
-        $query = CompanyTransaction::where('company_id', $company->id)
-            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
-            ->when($request->filled('type'), fn ($q) => $q->where('type', $request->string('type')))
-            ->when($request->filled('search'), function ($q) use ($request) {
-                $s = $request->string('search');
-                $q->where(function ($qq) use ($s) {
-                    $qq->where('reference', 'like', "%{$s}%")
-                        ->orWhere('description', 'like', "%{$s}%");
-                });
-            })
-            ->orderByDesc('occurred_at')
-            ->orderByDesc('id');
-
-        $transactions = $query->paginate(15)->withQueryString();
-
-        return Inertia::render('companies/settings/Transactions', [
-            'transactions' => $transactions,
-        ]);
     }
 
-    // Show/download a receipt (treat as show)
-    public function show(CompanyTransaction $transaction)
+    // Start checkout for the current user's company and chosen plan
+    public function checkout(Request $request): RedirectResponse
     {
-        $company = Auth::user()->currentCompany;
-        $this->authorize('viewBilling', $company);
+        $user = Auth::user();
+        $company = $user?->currentCompany;
+        abort_unless($company, 404);
 
-        if ($transaction->company_id !== $company->id) {
-            abort(403);
+        $plan = $request->string('plan')->toString();
+        abort_unless(in_array($plan, ['free', 'pro', 'business'], true), 422);
+
+        // Build success/cancel URLs
+        $successUrl = URL::route('dashboard');
+        $cancelUrl = URL::route('settings.billing'); // adjust as needed
+
+        $checkoutUrl = $this->paychangu->createCheckoutSession(
+            company: $company,
+            plan: $plan,
+            successUrl: $successUrl,
+            cancelUrl: $cancelUrl,
+        );
+
+        return redirect()->away($checkoutUrl);
+    }
+
+    // Redirect to billing portal for payment method management
+    public function portal(): RedirectResponse
+    {
+        $user = Auth::user();
+        $company = $user?->currentCompany;
+        abort_unless($company, 404);
+
+        $portalUrl = $this->paychangu->createBillingPortalSession($company, URL::route('settings.billing'));
+        return redirect()->away($portalUrl);
+    }
+
+    // Webhook receiver for PayChangu
+    public function webhook(Request $request): Response
+    {
+        // Validate signature if provided by PayChangu
+        $payload = $request->getContent();
+        $signature = $request->header('PayChangu-Signature');
+
+        if (!$this->paychangu->verifyWebhookSignature($payload, $signature)) {
+            Log::warning('Invalid PayChangu webhook signature');
+            return response('invalid signature', 400);
         }
 
-        // Minimal text receipt for now; can be improved to PDF
-        $lines = [
-            'Receipt',
-            '--------',
-            'Company: '.$company->name,
-            'Reference: '.$transaction->reference,
-            'Type: '.ucfirst($transaction->type),
-            'Amount: '.number_format($transaction->amount / 100, 2).' '.$transaction->currency,
-            'Status: '.ucfirst($transaction->status),
-            'Date: '.optional($transaction->occurred_at)->toDateTimeString(),
-        ];
+        $event = $request->json()->all();
+        try {
+            $this->paychangu->handleWebhookEvent($event);
+        } catch (\Throwable $e) {
+            Log::error('PayChangu webhook handling error', ['error' => $e->getMessage()]);
+            return response('error', 500);
+        }
 
-        $content = implode("\n", $lines);
-
-        return Response::make($content, 200, [
-            'Content-Type' => 'text/plain',
-            'Content-Disposition' => 'attachment; filename="receipt-'.$transaction->reference.'.txt"',
-        ]);
+        return response('ok');
     }
 }
