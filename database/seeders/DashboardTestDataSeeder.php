@@ -44,6 +44,7 @@ class DashboardTestDataSeeder extends Seeder
         if (! $company->users()->where('user_id', $user->id)->exists()) {
             $company->users()->attach($user->id, [
                 'is_owner' => true,
+                'role' => 'company_owner',
                 'joined_at' => now(),
             ]);
         }

@@ -27,24 +27,41 @@ const notifications = ref<NotificationItem[]>([])
 const unreadCount = ref(0)
 const loading = ref(false)
 
-const listUrl = route('notifications.index')
-const unreadUrl = route('notifications.unread-count')
-const markAllUrl = route('notifications.mark-all-read')
+// Use API routes directly
+const listUrl = '/api/notifications'
+const unreadUrl = '/api/notifications/unread-count'
+const markAllUrl = '/api/notifications/read-all'
 
 const csrf = () => (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || ''
 
+// Helper to get auth headers for API requests
+const getAuthHeaders = () => {
+  return {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    'X-CSRF-TOKEN': csrf(),
+    'X-Requested-With': 'XMLHttpRequest',
+  }
+}
+
 const fetchUnreadCount = async () => {
-  const res = await fetch(unreadUrl, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+  const res = await fetch(unreadUrl, { 
+    headers: getAuthHeaders(), 
+    credentials: 'same-origin' 
+  })
   if (res.ok) {
     const data = await res.json()
-    unreadCount.value = data.count ?? 0
+    unreadCount.value = data.unread_count ?? 0
   }
 }
 
 const fetchNotifications = async () => {
   loading.value = true
   try {
-    const res = await fetch(listUrl, { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' })
+    const res = await fetch(listUrl, { 
+      headers: getAuthHeaders(), 
+      credentials: 'same-origin' 
+    })
     if (res.ok) {
       const data = await res.json()
       notifications.value = data.notifications ?? []
@@ -56,10 +73,10 @@ const fetchNotifications = async () => {
 }
 
 const markAsRead = async (id: number) => {
-  const url = route('notifications.mark-read', { notification: id })
+  const url = `/api/notifications/${id}/read`
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'X-CSRF-TOKEN': csrf(), 'Accept': 'application/json' },
+    headers: getAuthHeaders(),
     credentials: 'same-origin',
   })
   if (res.ok) {
@@ -73,10 +90,10 @@ const markAsRead = async (id: number) => {
 }
 
 const dismiss = async (id: number) => {
-  const url = route('notifications.dismiss', { notification: id })
+  const url = `/api/notifications/${id}/dismiss`
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'X-CSRF-TOKEN': csrf(), 'Accept': 'application/json' },
+    headers: getAuthHeaders(),
     credentials: 'same-origin',
   })
   if (res.ok) {
@@ -91,7 +108,7 @@ const dismiss = async (id: number) => {
 const markAllAsRead = async () => {
   const res = await fetch(markAllUrl, {
     method: 'POST',
-    headers: { 'X-CSRF-TOKEN': csrf(), 'Accept': 'application/json' },
+    headers: getAuthHeaders(),
     credentials: 'same-origin',
   })
   if (res.ok) {
@@ -158,12 +175,14 @@ const levelVariant = (level: string): 'default' | 'secondary' | 'destructive' | 
 <template>
   <DropdownMenu>
     <DropdownMenuTrigger as-child>
-      <Button variant="ghost" size="icon" class="relative h-9 w-9">
-        <Bell class="h-5 w-5" />
-        <span v-if="unreadCount > 0" class="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-          {{ unreadCount > 99 ? '99+' : unreadCount }}
-        </span>
-      </Button>
+      <div>
+        <Button variant="ghost" size="icon" class="relative">
+          <Bell class="h-5 w-5" />
+          <span v-if="unreadCount > 0" class="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+            {{ unreadCount > 99 ? '99+' : unreadCount }}
+          </span>
+        </Button>
+      </div>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" class="w-96 p-0">
       <div class="flex items-center justify-between px-4 py-3">

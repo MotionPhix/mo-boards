@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { Link, Head, usePage } from '@inertiajs/vue3'
 import AppSidebar from '@/components/AppSidebar.vue'
 import QuickActionMenu from '@/components/QuickActionMenu.vue'
+import NotificationsBell from '@/components/NotificationsBell.vue'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -116,17 +117,17 @@ const computedBreadcrumbs = computed(() => {
   <!-- Sonner Toast -->
   <Toaster :theme="isDark ? 'dark' : 'light'" position="top-right" rich-colors :duration="5000" />
 
-  <SidebarProvider>
+  <SidebarProvider class="max-w-7xl">
     <AppSidebar />
     <SidebarInset class="overflow-x-hidden">
-      <!-- Header with breadcrumbs -->
+      <!-- Header with breadcrumbs and notifications -->
       <header class="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
-        <div class="flex items-center gap-2 px-4">
+        <div class="flex items-center gap-2 px-4 flex-1">
           <SidebarTrigger class="-ml-1" />
           <Separator orientation="vertical" class="mr-2 h-4" />
 
           <!-- Breadcrumbs -->
-          <Breadcrumb>
+          <Breadcrumb class="flex-1">
             <BreadcrumbList>
               <template v-for="(crumb, index) in computedBreadcrumbs" :key="index">
                 <BreadcrumbItem v-if="index < computedBreadcrumbs.length - 1">
@@ -149,6 +150,11 @@ const computedBreadcrumbs = computed(() => {
               </template>
             </BreadcrumbList>
           </Breadcrumb>
+        </div>
+
+        <!-- Right side: Notifications -->
+        <div class="flex items-center gap-2 px-4">
+          <NotificationsBell />
         </div>
       </header>
 

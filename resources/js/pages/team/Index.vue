@@ -1,18 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Head, Link, router, usePage } from '@inertiajs/vue3'
+import { Head, router, usePage } from '@inertiajs/vue3'
 import { toast } from 'vue-sonner'
 import {
   Users, UserPlus, Mail, X,
   Trash2, Pencil as Edit, ShieldCheck, Shield,
-  FileUser
 } from 'lucide-vue-next'
 import AppLayout from '@/layouts/AppLayout.vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardDescription, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import {
   Table,
   TableBody,
@@ -66,92 +64,104 @@ interface Props {
     name: string
   }
   roles: Role[]
-  userPermissions: {
-    canInviteUsers: boolean
-    canRemoveUsers: boolean
-    canUpdateRoles: boolean
-  }
+  // Removed userPermissions prop - we now get these from centralized abilities
 }
 
 const props = defineProps<Props>()
 const page = usePage()
 
-// Get subscription status
+console.log('Team Management Page Props:', props)
+
+// Use centralized abilities from the middleware/AuthorizationService
+const abilities = computed(() => (page.props as any).auth?.user?.abilities || {})
 const subscription = computed(() => (page.props as any).subscription || null)
 
-// Use props.userPermissions which now comes from the CompanyTeamPolicy
-const canInviteUsers = computed(() => {
-  const planAllows = subscription.value?.can_invite_team ?? true
-  return props.userPermissions.canInviteUsers && planAllows
+// Team management permissions - now using centralized abilities
+const canInviteUsers = computed(() => abilities.value.can_invite_team_members ?? false)
+const canRemoveUsers = computed(() => abilities.value.can_remove_team_members ?? false)
+const canUpdateRoles = computed(() => abilities.value.can_update_team_roles ?? false)
+const canManageInvitations = computed(() => abilities.value.can_manage_invitations ?? false)
+
+// Display current team status from subscription data
+const teamStatus = computed(() => {
+  if (!subscription.value?.team) return null
+
+  return {
+    current: subscription.value.team.current,
+    limit: subscription.value.team.limit,
+    canInviteMore: subscription.value.team.can_invite_more,
+    planName: subscription.value.plan
+  }
 })
-const canRemoveUsers = computed(() => props.userPermissions.canRemoveUsers)
-const canUpdateRoles = computed(() => props.userPermissions.canUpdateRoles)
 
-// Security: Show Role Permissions section only for users who can update roles
-const canViewRolePermissions = computed(() => props.userPermissions.canUpdateRoles)
+// Role icon helper
+const getRoleIcon = (role: string, isOwner: boolean) => {
+  if (isOwner) return ShieldCheck
+  return role === 'manager' || role === 'company_owner' ? ShieldCheck : Shield
+}
 
-// Remove a team member
-const removeMember = (member: TeamMember) => {
-  if (confirm(`Are you sure you want to remove ${member.name} from the team?`)) {
-    router.delete(route('team.destroy', { member: member.id }), {
-      onSuccess: () => {
-        toast({
-          title: 'Team member removed',
-          description: `${member.name} has been removed from the team`,
-        })
-      }
-    })
+// Role badge variant
+const getRoleBadgeVariant = (role: string, isOwner: boolean) => {
+  if (isOwner) return 'default'
+  switch (role) {
+    case 'manager': return 'secondary'
+    case 'editor': return 'outline'
+    case 'viewer': return 'outline'
+    default: return 'outline'
   }
 }
 
 // Cancel invitation
 const cancelInvitation = (invitation: TeamInvitation) => {
-  if (confirm(`Are you sure you want to cancel the invitation to ${invitation.name}?`)) {
-    router.delete(route('team.cancel-invitation', { invitation: invitation.id }), {
-      onSuccess: () => {
-        toast({
-          title: 'Invitation cancelled',
-          description: `Invitation to ${invitation.name} has been cancelled`,
-        })
-      }
+  if (!canManageInvitations.value) {
+    toast.error('Unauthorized', {
+      description: 'You do not have permission to cancel invitations'
     })
+    return
   }
+
+  router.delete(route('team.cancel-invitation', invitation.id), {
+    onSuccess: () => {
+      toast.success('Invitation cancelled', {
+        description: `The invitation for ${invitation.name} has been cancelled`
+      })
+    },
+    onError: () => {
+      toast.error('Failed to cancel invitation', {
+        description: 'Please try again later'
+      })
+    }
+  })
 }
 
-// Role display helpers
-const getRoleBadgeVariant = (role: string): "default" | "destructive" | "outline" | "secondary" => {
-  const mapping: Record<string, "default" | "destructive" | "outline" | "secondary"> = {
-    'company_owner': 'destructive',
-    'admin': 'secondary',
-    'manager': 'default',
-    'member': 'outline',
-    'editor': 'secondary',
-    'viewer': 'outline'
-  };
+// Remove team member
+const removeMember = (member: TeamMember) => {
+  if (!canRemoveUsers.value) {
+    toast.error('Unauthorized', {
+      description: 'You do not have permission to remove team members'
+    })
+    return
+  }
 
-  return mapping[role] || 'outline';
-}
+  if (member.is_owner) {
+    toast.error('Cannot remove owner', {
+      description: 'Company owners cannot be removed from the team'
+    })
+    return
+  }
 
-const getRoleDisplay = (role: string | null) => {
-  if (!role) return 'Unknown'
-
-  const roleDisplay = {
-    'company_owner': 'Owner',
-    'admin': 'Administrator',
-    'manager': 'Manager',
-    'member': 'Member',
-    'editor': 'Editor',
-    'viewer': 'Viewer'
-  }[role]
-
-  return roleDisplay || role.charAt(0).toUpperCase() + role.slice(1)
-}
-
-// Role icon
-const getRoleIcon = (role: string) => {
-  return role === 'owner' || role === 'admin'
-    ? ShieldCheck
-    : Shield
+  router.delete(route('team.destroy', member.id), {
+    onSuccess: () => {
+      toast.success('Team member removed', {
+        description: `${member.name} has been removed from the team`
+      })
+    },
+    onError: () => {
+      toast.error('Failed to remove team member', {
+        description: 'Please try again later'
+      })
+    }
+  })
 }
 
 // Breadcrumbs
@@ -182,9 +192,17 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
           <p class="text-muted-foreground">
             Manage your team members and their access levels
           </p>
+
+          <!-- Team Status Display -->
+          <div v-if="teamStatus" class="mt-2 text-sm text-muted-foreground">
+            Team Members: {{ teamStatus.current }}{{ teamStatus.limit ? `/${teamStatus.limit}` : '' }}
+            <span v-if="teamStatus.limit" class="ml-2">
+              ({{ teamStatus.planName }} plan)
+            </span>
+          </div>
         </div>
 
-        <!-- Invite User Modal Link -->
+        <!-- Invite User Button - uses centralized ability -->
         <Button
           v-if="canInviteUsers"
           :href="route('team.invite-modal')"
@@ -192,7 +210,69 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
           <UserPlus />
           Invite User
         </Button>
+
+        <!-- Show upgrade message if cannot invite -->
+        <div v-else-if="!canInviteUsers && teamStatus && !teamStatus.canInviteMore"
+             class="text-center">
+          <p class="text-sm text-muted-foreground mb-2">
+            Reached team limit ({{ teamStatus.current }}/{{ teamStatus.limit }})
+          </p>
+          <Button variant="outline" size="sm">
+            Upgrade Plan
+          </Button>
+        </div>
       </div>
+
+      <!-- Pending Invitations -->
+      <Card v-if="invitations.length > 0" class="mb-8 bg-card text-card-foreground">
+        <CardHeader>
+          <CardTitle class="flex items-center gap-2">
+            <Mail class="h-5 w-5 text-amber-500" />
+            Pending Invitations
+          </CardTitle>
+          <CardDescription>
+            Team member invitations that haven't been accepted yet
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div class="space-y-4">
+            <div v-for="invitation in invitations" :key="invitation.id"
+                 class="flex items-center justify-between p-4 border border-border rounded-lg bg-muted/30">
+              <div class="flex items-center gap-4">
+                <Avatar class="h-10 w-10">
+                  <AvatarFallback class="bg-amber-100 text-amber-600">
+                    {{ invitation.name.charAt(0).toUpperCase() }}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <p class="font-medium">{{ invitation.name }}</p>
+                    <Badge variant="outline" class="text-amber-600 border-amber-200">
+                      Pending
+                    </Badge>
+                  </div>
+                  <p class="text-sm text-muted-foreground">{{ invitation.email }}</p>
+                  <p class="text-xs text-muted-foreground">
+                    Invited {{ invitation.created_at }} • Expires {{ invitation.expires_at }}
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center gap-3">
+                <Badge :variant="getRoleBadgeVariant(invitation.role, false)">
+                  {{ invitation.role }}
+                </Badge>
+                <Button
+                  v-if="invitation.can.cancel && canManageInvitations"
+                  variant="ghost"
+                  size="sm"
+                  @click="cancelInvitation(invitation)">
+                  <X class="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <!-- Team Members Card -->
       <Card class="bg-card text-card-foreground">
@@ -213,62 +293,56 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
                   <TableHead>Name</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Joined</TableHead>
-                  <TableHead class="text-right" />
+                  <TableHead class="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
-
               <TableBody>
-                <TableRow v-for="member in team.data" :key="member.id" class="hover:bg-muted/50">
+                <TableRow v-for="member in team.data" :key="member.id">
                   <TableCell>
                     <div class="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage v-if="member.avatar" :src="member.avatar" alt="Avatar" />
-                        <AvatarFallback>{{ member.name.charAt(0) }}</AvatarFallback>
+                      <Avatar class="h-10 w-10">
+                        <AvatarImage v-if="member.avatar" :src="member.avatar" />
+                        <AvatarFallback>
+                          {{ member.name.charAt(0).toUpperCase() }}
+                        </AvatarFallback>
                       </Avatar>
                       <div>
-                        <div class="font-medium">{{ member.name }}</div>
-                        <div class="text-sm text-muted-foreground">{{ member.email }}</div>
+                        <p class="font-medium">{{ member.name }}</p>
+                        <p class="text-sm text-muted-foreground">{{ member.email }}</p>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge :variant="getRoleBadgeVariant(member.role)" class="flex items-center gap-1 w-fit">
-                      <component :is="getRoleIcon(member.role)" class="h-3 w-3" />
-                      {{ getRoleDisplay(member.role) }}
-                    </Badge>
+                    <div class="flex items-center gap-2">
+                      <component :is="getRoleIcon(member.role, member.is_owner)"
+                                 class="h-4 w-4"
+                                 :class="member.is_owner ? 'text-amber-500' : 'text-muted-foreground'" />
+                      <Badge :variant="getRoleBadgeVariant(member.role, member.is_owner)">
+                        {{ member.is_owner ? 'Owner' : member.role }}
+                      </Badge>
+                    </div>
                   </TableCell>
-                  <TableCell>{{ member.joined_at }}</TableCell>
+                  <TableCell class="text-muted-foreground">
+                    {{ member.joined_at }}
+                  </TableCell>
                   <TableCell class="text-right">
-                    <div class="flex justify-end gap-2">
-                      <!-- Edit Member Modal Link -->
-                      <ModalLink
-                        v-if="member.role !== 'company_owner' &&member.can.edit && canUpdateRoles"
-                        :href="route('team.edit-modal', member.id)">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          class="h-8 w-8 p-0">
-                          <span class="sr-only">Edit</span>
-                          <Edit class="h-4 w-4" />
-                        </Button>
-                      </ModalLink>
-
+                    <div class="flex items-center justify-end gap-2">
+                      <!-- Edit button - uses centralized ability -->
                       <Button
-                        :as="Link"
+                        v-if="member.can.edit && canUpdateRoles"
                         variant="ghost"
                         size="sm"
-                        :href="route('team.show', member.id)">
-                        <span class="sr-only">Show</span>
-                        <FileUser class="h-4 w-4" />
+                        :href="route('team.edit-modal', member.id)"
+                        :as="ModalLink">
+                        <Edit class="h-4 w-4" />
                       </Button>
 
+                      <!-- Remove button - uses centralized ability -->
                       <Button
-                        v-if="member.can.delete && canRemoveUsers"
-                        @click="removeMember(member)"
+                        v-if="member.can.delete && canRemoveUsers && !member.is_owner"
                         variant="ghost"
                         size="sm"
-                        class="h-8 w-8 p-0 text-destructive hover:bg-destructive/10">
-                        <span class="sr-only">Remove</span>
+                        @click="removeMember(member)">
                         <Trash2 class="h-4 w-4" />
                       </Button>
                     </div>
@@ -276,117 +350,6 @@ const pageDescription = computed(() => `Manage team members for ${props.company.
                 </TableRow>
               </TableBody>
             </Table>
-          </div>
-
-          <div
-            v-if="team.data.length === 0"
-            class="py-8 text-center">
-            <div class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-4">
-              <Users class="h-6 w-6 text-muted-foreground" />
-            </div>
-            <h3 class="text-lg font-medium">No team members</h3>
-            <p class="text-muted-foreground mt-2 mb-4 max-w-md mx-auto">
-              You don't have any team members yet. Start by inviting colleagues to collaborate.
-            </p>
-            <ModalLink
-              v-if="canInviteUsers"
-              href="/team/invite"
-              :close-button="true"
-              :close-explicitly="false"
-              max-width="md"
-              padding-classes="p-6"
-              position="center"
-            >
-              <Button>
-                <UserPlus class="h-4 w-4 mr-2" />
-                Invite Your First Team Member
-              </Button>
-            </ModalLink>
-          </div>
-        </CardContent>
-      </Card>
-
-      <!-- Pending Invitations Card -->
-      <Card class="mt-8 bg-card text-card-foreground" v-if="invitations.length > 0">
-        <CardHeader>
-          <CardTitle class="flex items-center gap-2">
-            <Mail class="h-5 w-5 text-primary" />
-            Pending Invitations
-          </CardTitle>
-          <CardDescription>
-            Users who have been invited but haven't joined the team yet
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div class="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Sent</TableHead>
-                  <TableHead>Expires</TableHead>
-                  <TableHead class="text-right"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow v-for="invitation in invitations" :key="invitation.id" class="hover:bg-muted/50">
-                  <TableCell class="grid">
-                    <strong>{{ invitation.name }}</strong>
-                    <span class="text-muted-foreground">{{ invitation.email }}</span>
-                  </TableCell>
-                  <TableCell>
-                    <Badge :variant="getRoleBadgeVariant(invitation.role)" class="flex items-center gap-1 w-fit">
-                      <component :is="getRoleIcon(invitation.role)" class="h-3 w-3" />
-                      {{ getRoleDisplay(invitation.role) }}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{{ invitation.created_at }}</TableCell>
-                  <TableCell>{{ invitation.expires_at }}</TableCell>
-                  <TableCell class="text-right">
-                    <div class="flex justify-end gap-2">
-                      <Button
-                        v-if="invitation.can.cancel"
-                        @click="cancelInvitation(invitation)"
-                        variant="ghost"
-                        size="sm"
-                        class="h-8 w-8 p-0 text-destructive hover:bg-destructive/10">
-                        <span class="sr-only">Cancel</span>
-                        <X class="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <!-- Role Permissions Card -->
-      <Card v-if="canViewRolePermissions" class="mt-8 bg-card text-card-foreground">
-        <CardHeader>
-          <CardTitle class="flex items-center gap-2">
-            <ShieldCheck class="h-5 w-5 text-primary" />
-            Role Permissions
-          </CardTitle>
-          <CardDescription>
-            Understanding access levels for each role
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent>
-          <div class="space-y-6">
-            <div v-for="role in roles" :key="role.id" class="space-y-2">
-              <div class="flex items-center gap-2">
-                <Badge :variant="getRoleBadgeVariant(role.name)" class="flex items-center gap-1 w-fit">
-                  <component :is="getRoleIcon(role.name)" class="h-3 w-3" />
-                  {{ getRoleDisplay(role.name) }}
-                </Badge>
-              </div>
-              <p class="text-sm text-muted-foreground">{{ role.description }}</p>
-              <Separator class="my-2" />
-            </div>
           </div>
         </CardContent>
       </Card>

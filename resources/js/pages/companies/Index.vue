@@ -97,8 +97,6 @@ function runBulkDelete() {
   form.submit()
 }
 
-// Watch sort/direction/perPage/filters and reload with new query params
-
 function buildQuery() {
   const params: Record<string, any> = {}
   if (q.value) params.q = q.value

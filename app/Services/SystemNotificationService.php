@@ -129,6 +129,53 @@ class SystemNotificationService
     }
 
     /**
+     * Get active notifications for a user
+     */
+    public function getUserNotifications(User $user, bool $unreadOnly = false): \Illuminate\Database\Eloquent\Collection
+    {
+        $query = SystemNotification::forUser($user)
+            ->active()
+            ->notDismissed()
+            ->orderBy('created_at', 'desc');
+
+        if ($unreadOnly) {
+            $query->unread();
+        }
+
+        return $query->get();
+    }
+
+    /**
+     * Mark all notifications as read for a company
+     */
+    public function markAllAsReadForCompany(Company $company): int
+    {
+        return SystemNotification::forCompany($company)
+            ->active()
+            ->notDismissed()
+            ->unread()
+            ->update([
+                'is_read' => true,
+                'read_at' => now(),
+            ]);
+    }
+
+    /**
+     * Mark all notifications as read for a user
+     */
+    public function markAllAsReadForUser(User $user): int
+    {
+        return SystemNotification::forUser($user)
+            ->active()
+            ->notDismissed()
+            ->unread()
+            ->update([
+                'is_read' => true,
+                'read_at' => now(),
+            ]);
+    }
+
+    /**
      * Check and create limit notifications for a company
      */
     public function checkAndNotifyLimits(Company $company): array

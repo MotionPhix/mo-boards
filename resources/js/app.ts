@@ -36,21 +36,18 @@ putConfig({
     },
 });
 
-// Vite env typings are declared in resources/js/types/vite-env.d.ts
-
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 // Setup Echo using Vite env and broadcasting driver
 configureEcho({
   broadcaster: (import.meta as any).env.VITE_BROADCAST_CONNECTION || 'pusher',
-  // For pusher, you can optionally specify values; otherwise defaults read from Vite env
   key: (import.meta as any).env.VITE_PUSHER_APP_KEY,
   cluster: (import.meta as any).env.VITE_PUSHER_APP_CLUSTER,
-  wsHost: (import.meta as any).env.VITE_PUSHER_HOST,
-  wsPort: (import.meta as any).env.VITE_PUSHER_PORT,
-  wssPort: (import.meta as any).env.VITE_PUSHER_PORT,
-  forceTLS: ((import.meta as any).env.VITE_PUSHER_SCHEME ?? 'https') === 'https',
-  enabledTransports: ['ws', 'wss'],
+  // wsHost: (import.meta as any).env.VITE_PUSHER_HOST,
+  // wsPort: (import.meta as any).env.VITE_PUSHER_PORT,
+  // wssPort: (import.meta as any).env.VITE_PUSHER_PORT,
+  // forceTLS: ((import.meta as any).env.VITE_PUSHER_SCHEME ?? 'https') === 'https',
+  // enabledTransports: ['ws', 'wss'],
 });
 
 createInertiaApp({
